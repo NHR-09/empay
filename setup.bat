@@ -2,7 +2,7 @@
 set PGBIN=C:\postgres\16\pgsql\bin
 set PGDATA=C:\postgres\16\pgsql\data
 set PGPASSWORD=postgres
-set JAVA_HOME=C:\Program Files\Java\jdk-17
+set JAVA_HOME=C:\PROGRA~1\Java\jdk-17
 set PATH=%JAVA_HOME%\bin;%PATH%
 
 echo ==========================================
@@ -32,6 +32,7 @@ if errorlevel 1 (
 echo [3/4] Applying migrations...
 %PGBIN%\psql.exe -U postgres -d empay_hrms -f "migrate_enums.sql" >nul 2>&1
 %PGBIN%\psql.exe -U postgres -d empay_hrms -f "migrate.sql" >nul 2>&1
+%PGBIN%\psql.exe -U postgres -d empay_hrms -f "migrate_loginid.sql" >nul 2>&1
 echo Migrations done.
 
 :: Step 4 - Start Spring Boot

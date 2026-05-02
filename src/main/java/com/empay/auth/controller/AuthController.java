@@ -37,7 +37,8 @@ public class AuthController {
             );
             return ResponseEntity.ok(Map.of(
                 "message", "User registered successfully. Temporary password sent to email.",
-                "email", user.getEmail()
+                "email", user.getEmail(),
+                "loginId", user.getLoginId()
             ));
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
@@ -61,7 +62,8 @@ public class AuthController {
             "role", user.getRole().getRoleName(),
             "firstName", user.getFirstName(),
             "lastName", user.getLastName(),
-            "email", user.getEmail()
+            "email", user.getEmail(),
+            "loginId", user.getLoginId() != null ? user.getLoginId() : ""
         ));
     }
 

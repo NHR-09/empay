@@ -26,32 +26,32 @@ public class AuthApplication {
                                 PasswordEncoder passwordEncoder) {
         return args -> {
             // Seed default organization if not exists
-            Organization org = organizationRepository.findByCompanyCode("EMPAY001")
+            Organization org = organizationRepository.findByCompanyCode("OI")
                     .orElseGet(() -> {
                         Organization o = new Organization();
-                        o.setCompanyName("EmPay");
-                        o.setCompanyCode("EMPAY001");
-                        o.setEmail("admin@empay.com");
+                        o.setCompanyName("Odoo India");
+                        o.setCompanyCode("OI");
+                        o.setEmail("admin@odooindia.com");
                         o.setSubscriptionPlan("ENTERPRISE");
                         return organizationRepository.save(o);
                     });
 
             // Seed admin user if not exists
-            if (userRepository.findByEmail("admin@empay.com").isEmpty()) {
+            if (userRepository.findByEmail("admin@odooindia.com").isEmpty()) {
                 RoleEntity adminRole = roleRepository.findByRoleName("ADMIN")
                         .orElseThrow(() -> new RuntimeException("ADMIN role not found in DB. Run empay_schema.sql first."));
 
                 User admin = new User();
                 admin.setFirstName("Super");
                 admin.setLastName("Admin");
-                admin.setEmail("admin@empay.com");
+                admin.setEmail("admin@odooindia.com");
                 admin.setPassword(passwordEncoder.encode("Admin@123"));
                 admin.setOrganization(org);
                 admin.setRole(adminRole);
                 admin.setMustChangePassword(false);
                 userRepository.save(admin);
 
-                System.out.println("✅ Admin user seeded: admin@empay.com / Admin@123");
+                System.out.println("✅ Admin user seeded: admin@odooindia.com / Admin@123");
             }
         };
     }

@@ -11,17 +11,27 @@ import java.util.Map;
 public class AdminController {
 
     private final UserService userService;
+    private final com.empay.auth.repository.UserRepository userRepository;
 
-    public AdminController(UserService userService) {
+    public AdminController(UserService userService, com.empay.auth.repository.UserRepository userRepository) {
         this.userService = userService;
+        this.userRepository = userRepository;
     }
 
     @PostMapping("/create-user")
     public ResponseEntity<?> createUser(@RequestBody Map<String, String> body) {
+        String requestedBy = body.get("requestedBy");
+        if (requestedBy != null) {
+            userRepository.findByEmail(requestedBy).ifPresent(u -> {
+                String role = u.getRole().getRoleName();
+                if (role.equals("EMPLOYEE")) {
+                    throw new RuntimeException("Access denied: Employees cannot create users.");
+                }
+            });
+        }
         try {
-            // companyCode defaults to EMPAY001 (the seeded org) if not provided
-            String companyCode = body.getOrDefault("companyCode", "EMPAY001");
-            userService.registerUser(
+            String companyCode = body.getOrDefault("companyCode", "OI");
+            com.empay.auth.model.User user = userService.registerUser(
                 body.get("firstName"),
                 body.get("lastName"),
                 body.get("email"),
@@ -29,7 +39,11 @@ public class AdminController {
                 companyCode,
                 body.getOrDefault("role", "EMPLOYEE")
             );
-            return ResponseEntity.ok(Map.of("message", "User created and temporary password sent to " + body.get("email")));
+            return ResponseEntity.ok(Map.of(
+                "message", "User created successfully.",
+                "loginId", user.getLoginId(),
+                "email",   user.getEmail()
+            ));
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
         }

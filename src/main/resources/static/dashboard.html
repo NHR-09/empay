@@ -2,30 +2,273 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>EmpPay - Dashboard</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <title>Odoo India HRMS</title>
     <style>
-        body { background: #f0f2f5; }
-        .card { border: none; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { background: #fff; color: #000; font-family: 'Segoe UI', sans-serif; height: 100vh; display: flex; overflow: hidden; font-size: 13px; }
+
+        /* Sidebar */
+        #sidebar { width: 180px; min-width: 180px; background: #000; display: flex; flex-direction: column; }
+        .brand { padding: 20px 16px; border-bottom: 1px solid #333; }
+        .brand strong { color: #fff; font-size: 15px; display: block; }
+        .brand span { color: #999; font-size: 11px; }
+        nav a { display: block; padding: 12px 16px; color: #aaa; text-decoration: none; border-bottom: 1px solid #111; }
+        nav a:hover { background: #222; color: #fff; }
+        nav a.active { background: #fff; color: #000; font-weight: 600; }
+
+        /* Main */
+        #main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+        /* Topbar */
+        #topbar { background: #f5f5f5; border-bottom: 1px solid #ccc; padding: 10px 20px; display: flex; align-items: center; gap: 10px; }
+        #topbar .title { font-weight: 600; font-size: 14px; margin-right: auto; }
+        #btnNew { background: #000; color: #fff; border: none; padding: 7px 16px; cursor: pointer; font-size: 12px; }
+        #btnNew:hover { background: #333; }
+        #searchInput { border: 1px solid #ccc; padding: 7px 10px; font-size: 12px; width: 220px; outline: none; }
+        #searchInput:focus { border-color: #000; }
+        .topbar-btn { background: #fff; border: 1px solid #ccc; padding: 6px 10px; cursor: pointer; font-size: 12px; }
+        .topbar-btn:hover { background: #f0f0f0; }
+
+        /* Content */
+        #content { flex: 1; overflow-y: auto; padding: 20px; }
+
+        /* Tabs */
+        .tabs { display: flex; border-bottom: 1px solid #ccc; margin-bottom: 20px; }
+        .tabs button { background: none; border: none; padding: 8px 16px; cursor: pointer; font-size: 13px; color: #666; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+        .tabs button.active { color: #000; border-bottom-color: #000; font-weight: 600; }
+        .tabs button:hover { color: #000; }
+
+        /* Employee table */
+        table { width: 100%; border-collapse: collapse; }
+        th { background: #f5f5f5; border: 1px solid #ddd; padding: 8px 12px; text-align: left; font-weight: 600; }
+        td { border: 1px solid #ddd; padding: 8px 12px; }
+        tr:hover td { background: #fafafa; }
+
+        /* Form */
+        .form-card { border: 1px solid #ccc; padding: 24px; max-width: 600px; }
+        .form-card h6 { font-size: 14px; font-weight: 600; margin-bottom: 20px; }
+        .form-row { display: flex; gap: 16px; margin-bottom: 14px; }
+        .form-row .field, .field { flex: 1; margin-bottom: 14px; }
+        .field label { display: block; font-size: 12px; color: #555; margin-bottom: 4px; }
+        .field input, .field select { width: 100%; border: 1px solid #ccc; padding: 7px 10px; font-size: 13px; outline: none; background: #fff; }
+        .field input:focus, .field select:focus { border-color: #000; }
+        .form-actions { display: flex; gap: 10px; margin-top: 8px; }
+        .btn-black { background: #000; color: #fff; border: none; padding: 8px 20px; cursor: pointer; font-size: 13px; }
+        .btn-black:hover { background: #333; }
+        .btn-outline { background: #fff; color: #000; border: 1px solid #ccc; padding: 8px 20px; cursor: pointer; font-size: 13px; }
+        .btn-outline:hover { background: #f5f5f5; }
+
+        /* Alert */
+        .alert { padding: 8px 12px; border: 1px solid #ccc; font-size: 12px; margin-bottom: 16px; background: #f9f9f9; }
+
+        /* Empty state */
+        #emptyState { text-align: center; padding: 60px 0; color: #aaa; }
+
+        #addEmployeeSection { display: none; }
     </style>
 </head>
-<body class="d-flex align-items-center justify-content-center min-vh-100">
-    <div class="card p-4 text-center" style="width: 100%; max-width: 400px;">
-        <h4 class="fw-bold text-primary mb-1">EmpPay</h4>
-        <p class="text-muted mb-3">Welcome, <span id="userName" class="fw-semibold"></span>!</p>
-        <p class="text-muted">You are successfully logged in.</p>
-        <button class="btn btn-outline-secondary mt-2" onclick="logout()">Logout</button>
+<body>
+
+<div id="sidebar">
+    <div class="brand">
+        <strong>Odoo India</strong>
+        <span id="userRole">—</span>
+    </div>
+    <nav>
+        <a href="#" class="active" data-section="employees">Employees</a>
+        <a href="#" data-section="attendance">Attendance</a>
+        <a href="#" data-section="timeoff">Time Off</a>
+        <a href="#" data-section="payroll">Payroll</a>
+        <a href="#" data-section="reports">Reports</a>
+        <a href="#" data-section="settings">Settings</a>
+    </nav>
+</div>
+
+<div id="main">
+    <div id="topbar">
+        <span class="title" id="sectionTitle">Employees</span>
+        <button id="btnNew" onclick="switchTab('add', document.getElementById('addTab'))">+ New</button>
+        <input type="text" id="searchInput" placeholder="Search..." oninput="filterEmployees(this.value)">
+        <button class="topbar-btn" onclick="showProfile()">Profile</button>
+        <button class="topbar-btn" onclick="logout()">Logout</button>
     </div>
 
-    <script>
-        const user = JSON.parse(sessionStorage.getItem('user'));
-        if (!user) window.location.href = '/index.html';
-        document.getElementById('userName').textContent = user.name;
+    <div id="content">
+        <div class="tabs" id="empTabs">
+            <button class="active" onclick="switchTab('list', this)">All Employees</button>
+            <button id="addTab" onclick="switchTab('add', this)">+ Add Employee</button>
+        </div>
 
-        function logout() {
-            sessionStorage.clear();
-            window.location.href = '/index.html';
+        <!-- List -->
+        <div id="listSection">
+            <table id="empTable">
+                <thead>
+                    <tr>
+                        <th>Login ID</th>
+                        <th>Name</th>
+                        <th>Email</th>
+                        <th>Role</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody id="empBody"></tbody>
+            </table>
+            <div id="emptyState" style="display:none;">No employees found.</div>
+        </div>
+
+        <!-- Add Employee -->
+        <div id="addEmployeeSection">
+            <div class="form-card">
+                <h6>Add New Employee</h6>
+                <div id="addEmpAlert" class="alert" style="display:none;"></div>
+                <form id="addEmpForm" onsubmit="return false;">
+                    <div class="form-row">
+                        <div class="field">
+                            <label>First Name</label>
+                            <input type="text" id="addFirstName" required>
+                        </div>
+                        <div class="field">
+                            <label>Last Name</label>
+                            <input type="text" id="addLastName" required>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="field">
+                            <label>Email</label>
+                            <input type="email" id="addEmail" required>
+                        </div>
+                        <div class="field">
+                            <label>Phone</label>
+                            <input type="text" id="addPhone">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="field">
+                            <label>Role</label>
+                            <select id="addRole">
+                                <option value="EMPLOYEE">Employee</option>
+                                <option value="HR_OFFICER">HR Officer</option>
+                                <option value="PAYROLL_OFFICER">Payroll Officer</option>
+                                <option value="ADMIN">Admin</option>
+                            </select>
+                        </div>
+                        <div class="field">
+                            <label>Designation</label>
+                            <input type="text" id="addDesignation">
+                        </div>
+                    </div>
+                    <div class="form-actions">
+                        <button class="btn-black" onclick="submitAddEmployee()">Create & Send Password</button>
+                        <button class="btn-outline" type="reset">Clear</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const user = JSON.parse(sessionStorage.getItem('user'));
+    if (!user) window.location.href = '/index.html';
+
+    document.getElementById('userRole').textContent = user.role || '';
+    const canManage = ['ADMIN', 'HR_OFFICER'].includes(user.role);
+    if (!canManage) {
+        document.getElementById('btnNew').style.display = 'none';
+        document.getElementById('addTab').style.display = 'none';
+    }
+
+    // Sidebar
+    document.querySelectorAll('nav a').forEach(link => {
+        link.addEventListener('click', e => {
+            e.preventDefault();
+            document.querySelectorAll('nav a').forEach(a => a.classList.remove('active'));
+            link.classList.add('active');
+            document.getElementById('sectionTitle').textContent =
+                link.dataset.section.charAt(0).toUpperCase() + link.dataset.section.slice(1);
+            if (link.dataset.section === 'employees') {
+                document.getElementById('empTabs').style.display = 'flex';
+                switchTab('list', document.querySelector('.tabs button'));
+            } else {
+                document.getElementById('empTabs').style.display = 'none';
+                document.getElementById('listSection').style.display = 'none';
+                document.getElementById('addEmployeeSection').style.display = 'none';
+            }
+        });
+    });
+
+    function switchTab(tab, btn) {
+        if (tab === 'add' && !canManage) return;
+        document.querySelectorAll('.tabs button').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        document.getElementById('listSection').style.display        = tab === 'list' ? 'block' : 'none';
+        document.getElementById('addEmployeeSection').style.display = tab === 'add'  ? 'block' : 'none';
+        document.getElementById('btnNew').style.display      = (tab === 'list' && canManage) ? 'inline-block' : 'none';
+        document.getElementById('searchInput').style.display = tab === 'list' ? 'inline-block' : 'none';
+    }
+
+    // Mock data — replace with API
+    const mockEmployees = [
+        { loginId: 'OIALJO20260001', name: 'Alice Johnson',  email: 'alice@oi.com', role: 'HR Officer',      active: true },
+        { loginId: 'OIBOSM20260002', name: 'Bob Smith',       email: 'bob@oi.com',   role: 'Developer',       active: true },
+        { loginId: 'OICAWH20260003', name: 'Carol White',     email: 'carol@oi.com', role: 'Payroll Officer', active: false },
+    ];
+    let allEmployees = [...mockEmployees];
+
+    function renderTable(list) {
+        const tbody = document.getElementById('empBody');
+        const empty = document.getElementById('emptyState');
+        tbody.innerHTML = '';
+        if (!list.length) { empty.style.display = 'block'; document.getElementById('empTable').style.display = 'none'; return; }
+        empty.style.display = 'none';
+        document.getElementById('empTable').style.display = 'table';
+        list.forEach(emp => {
+            tbody.innerHTML += `<tr>
+                <td>${emp.loginId}</td>
+                <td>${emp.name}</td>
+                <td>${emp.email}</td>
+                <td>${emp.role}</td>
+                <td>${emp.active ? 'Active' : 'Inactive'}</td>
+            </tr>`;
+        });
+    }
+    renderTable(allEmployees);
+
+    function filterEmployees(q) {
+        q = q.toLowerCase();
+        renderTable(allEmployees.filter(e => e.name.toLowerCase().includes(q) || e.role.toLowerCase().includes(q)));
+    }
+
+    async function submitAddEmployee() {
+        const alertEl = document.getElementById('addEmpAlert');
+        const payload = {
+            firstName: document.getElementById('addFirstName').value.trim(),
+            lastName:  document.getElementById('addLastName').value.trim(),
+            email:     document.getElementById('addEmail').value.trim(),
+            phone:     document.getElementById('addPhone').value.trim(),
+            role:      document.getElementById('addRole').value
+        };
+        if (!payload.firstName || !payload.lastName || !payload.email) {
+            alertEl.textContent = 'First name, last name and email are required.';
+            alertEl.style.display = 'block';
+            return;
         }
-    </script>
+        try {
+            const res = await fetch('/api/admin/create-user', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+            });
+            const data = await res.json();
+            alertEl.textContent = res.ok ? `Created! Login ID: ${data.loginId} — Password sent to ${data.email}` : data.message;
+            alertEl.style.display = 'block';
+            if (res.ok) document.getElementById('addEmpForm').reset();
+        } catch {
+            alertEl.textContent = 'Network error.';
+            alertEl.style.display = 'block';
+        }
+    }
+
+    function logout() { sessionStorage.clear(); window.location.href = '/index.html'; }
+    function showProfile() { alert(`${user.firstName} ${user.lastName}\n${user.email}\n${user.role}`); }
+</script>
 </body>
 </html>
