@@ -20,7 +20,8 @@ public class AdminController {
     private final UserRepository userRepository;
     private final EmployeeRepository employeeRepository;
 
-    public AdminController(UserService userService, UserRepository userRepository, EmployeeRepository employeeRepository) {
+    public AdminController(UserService userService, UserRepository userRepository,
+                           EmployeeRepository employeeRepository) {
         this.userService = userService;
         this.userRepository = userRepository;
         this.employeeRepository = employeeRepository;
@@ -119,15 +120,26 @@ public class AdminController {
                 body.getOrDefault("role", "EMPLOYEE")
             );
             // Auto-create employee record
+            Employee emp;
             if (employeeRepository.findByUser(user).isEmpty()) {
-                Employee emp = new Employee();
+                emp = new Employee();
                 emp.setUser(user);
                 emp.setOrganization(user.getOrganization());
                 emp.setEmployeeCode(user.getLoginId());
                 emp.setDesignation(body.getOrDefault("designation", ""));
                 emp.setJoiningDate(LocalDate.now());
-                employeeRepository.save(emp);
+            } else {
+                emp = employeeRepository.findByUser(user).get();
             }
+            // Assign HR manager if provided
+            String hrManagerLoginId = body.get("hrManagerLoginId");
+            if (hrManagerLoginId != null && !hrManagerLoginId.isBlank()) {
+                userRepository.findAll().stream()
+                    .filter(u -> hrManagerLoginId.equals(u.getLoginId()))
+                    .findFirst()
+                    .ifPresent(emp::setHrManager);
+            }
+            employeeRepository.save(emp);
             return ResponseEntity.ok(Map.of(
                 "message", "User created successfully.",
                 "loginId", user.getLoginId(),
@@ -136,6 +148,19 @@ public class AdminController {
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
         }
+    }
+
+    @GetMapping("/hr-managers")
+    public ResponseEntity<?> getHrManagers() {
+        List<Map<String, String>> hrs = userRepository.findAll().stream()
+            .filter(u -> u.getRole() != null && "HR_OFFICER".equals(u.getRole().getRoleName()) && u.isActive())
+            .map(u -> Map.of(
+                "loginId",   u.getLoginId() != null ? u.getLoginId() : "",
+                "name",      u.getFirstName() + " " + u.getLastName(),
+                "email",     u.getEmail()
+            ))
+            .collect(Collectors.toList());
+        return ResponseEntity.ok(hrs);
     }
 
     @GetMapping("/stats")

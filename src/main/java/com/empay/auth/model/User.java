@@ -34,7 +34,7 @@ public class User {
 
     private String phone;
 
-    @Column(name = "profile_image")
+    @Column(name = "profile_image", columnDefinition = "TEXT")
     private String profileImage;
 
     @Column(name = "is_active")
@@ -77,6 +77,9 @@ public class User {
 
     public String getPhone() { return phone; }
     public void setPhone(String phone) { this.phone = phone; }
+
+    public String getProfileImage() { return profileImage; }
+    public void setProfileImage(String profileImage) { this.profileImage = profileImage; }
 
     public boolean isActive() { return isActive; }
     public void setActive(boolean active) { isActive = active; }

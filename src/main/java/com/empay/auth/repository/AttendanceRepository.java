@@ -17,7 +17,7 @@ public interface AttendanceRepository extends JpaRepository<Attendance, UUID> {
     @Query("SELECT a FROM Attendance a WHERE a.employee.organization.id = :orgId AND a.attendanceDate = :date")
     List<Attendance> findByOrgAndDate(@Param("orgId") UUID orgId, @Param("date") LocalDate date);
 
-    @Query("SELECT a FROM Attendance a WHERE a.employee.organization.id = :orgId AND MONTH(a.attendanceDate) = :month AND YEAR(a.attendanceDate) = :year")
+    @Query("SELECT a FROM Attendance a WHERE a.employee.organization.id = :orgId AND MONTH(a.attendanceDate) = :month AND YEAR(a.attendanceDate) = :year ORDER BY a.attendanceDate DESC, a.checkIn DESC")
     List<Attendance> findByOrgAndMonthYear(@Param("orgId") UUID orgId, @Param("month") int month, @Param("year") int year);
 
     @Query("SELECT COUNT(a) FROM Attendance a WHERE a.employee = :emp AND MONTH(a.attendanceDate) = :month AND YEAR(a.attendanceDate) = :year AND a.status = 'PRESENT'")

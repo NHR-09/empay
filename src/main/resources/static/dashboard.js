@@ -3,10 +3,11 @@ const user = JSON.parse(sessionStorage.getItem('user'));
 if (!user) window.location.href = '/index.html';
 
 const ROLE = user.role || '';
-const CAN_MANAGE   = ['ADMIN', 'HR_OFFICER'].includes(ROLE);
-const CAN_PAYROLL  = ['ADMIN', 'PAYROLL_OFFICER'].includes(ROLE);
-const IS_ADMIN     = ROLE === 'ADMIN';
-const IS_EMPLOYEE  = ROLE === 'EMPLOYEE';
+const IS_ADMIN    = ROLE === 'ADMIN';
+const IS_HR       = ROLE === 'HR_OFFICER';
+const IS_EMPLOYEE = ROLE === 'EMPLOYEE';
+const CAN_MANAGE  = IS_ADMIN || IS_HR;
+const CAN_PAYROLL = IS_ADMIN || ROLE === 'PAYROLL_OFFICER';
 
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
@@ -15,22 +16,23 @@ document.addEventListener('DOMContentLoaded', () => {
   initUser();
   initSidebar();
   initDateFilters();
-  showSection('home');
-  loadHome();
+  showSection('employees');
+  loadSection('employees');
   loadNotifications();
 });
 
 /* ─── DYNAMIC DATE FILTERS ───────────────────────────── */
 function initDateFilters() {
   const now = new Date();
-  const curMonth = now.getMonth() + 1; // 1-indexed
+  const curMonth = now.getMonth() + 1;
   const curYear = now.getFullYear();
   const monthNames = ['January','February','March','April','May','June',
                       'July','August','September','October','November','December'];
-
-  // Fill all month selects
-  document.querySelectorAll('.month-select').forEach(sel => {
+  // Populate all month selects
+  document.querySelectorAll('.month-select, #genMonth, #hrAttMonth, #filterPayMonth').forEach(sel => {
+    const keepFirst = sel.querySelector('option[value="0"]');
     sel.innerHTML = '';
+    if (keepFirst) sel.appendChild(keepFirst);
     for (let i = 1; i <= 12; i++) {
       const opt = document.createElement('option');
       opt.value = i;
@@ -39,59 +41,99 @@ function initDateFilters() {
       sel.appendChild(opt);
     }
   });
-
-  // Fill all year inputs
-  document.querySelectorAll('.year-input').forEach(inp => {
-    inp.value = curYear;
+  // Populate all year selects
+  document.querySelectorAll('#genYear, #filterPayYear, #hrAttYear, #empPayYear').forEach(sel => {
+    sel.innerHTML = '';
+    for (let y = curYear; y >= curYear - 2; y--) {
+      const opt = document.createElement('option');
+      opt.value = y; opt.textContent = y;
+      sel.appendChild(opt);
+    }
   });
+  // Populate employee payslip month filter
+  document.querySelectorAll('#empPayMonth').forEach(sel => {
+    const keepFirst = sel.querySelector('option[value="0"]');
+    sel.innerHTML = '';
+    if (keepFirst) sel.appendChild(keepFirst);
+    for (let i = 1; i <= 12; i++) {
+      const opt = document.createElement('option');
+      opt.value = i; opt.textContent = monthNames[i-1];
+      sel.appendChild(opt);
+    }
+  });
+  // Populate HR manager dropdown for Add Employee
+  populateHrManagerDropdown();
 }
 
 function initUser() {
   const initials = ((user.firstName||'')[0]||'') + ((user.lastName||'')[0]||'');
   document.getElementById('avatarInitials').textContent = initials.toUpperCase();
+  if (document.getElementById('topAvatarInitials')) {
+    document.getElementById('topAvatarInitials').textContent = initials.toUpperCase();
+  }
   document.getElementById('sidebarName').textContent = user.firstName + ' ' + user.lastName;
   document.getElementById('sidebarRole').textContent = ROLE.replace('_', ' ');
 
-  // Hide nav items and admin-only tabs based on role
+  // Role-based nav visibility
+  // EMPLOYEE: employees, attendance, timeoff, mypayslips, profile
+  // ADMIN: employees, add employee, attendance, timeoff — NO payroll
+  // HR: employees, payroll, hrpanel, reports
+
+  if (IS_ADMIN) {
+    document.getElementById('navAddEmployee')?.classList.remove('d-none');
+  }
+  if (IS_HR) {
+    document.getElementById('navPayroll')?.classList.remove('d-none');
+    document.getElementById('navHrPanel')?.classList.remove('d-none');
+    document.getElementById('navReports')?.classList.remove('d-none');
+  }
   if (IS_EMPLOYEE) {
-    document.getElementById('navReports').style.display = 'none';
-    document.getElementById('navAuditLogs').style.display = 'none';
-    // Hide Add Employee tab for employees
-    const addTab = document.getElementById('btnAddEmpTab');
-    if (addTab) addTab.style.display = 'none';
+    document.getElementById('navMyPayslips')?.classList.remove('d-none');
   }
 }
 
 /* ─── SIDEBAR ────────────────────────────────────────── */
 function initSidebar() {
-  document.querySelectorAll('nav a[data-section]').forEach(link => {
+  document.querySelectorAll('.sidebar .nav-link[data-section]').forEach(link => {
     link.addEventListener('click', e => {
       e.preventDefault();
       const sec = link.dataset.section;
-      document.querySelectorAll('nav a').forEach(a => a.classList.remove('active'));
+      document.querySelectorAll('.sidebar .nav-link').forEach(a => a.classList.remove('active'));
       link.classList.add('active');
       showSection(sec);
       loadSection(sec);
     });
   });
+  const topProfileLink = document.getElementById('navMyProfile');
+  if (topProfileLink) {
+    topProfileLink.addEventListener('click', e => {
+      e.preventDefault();
+      document.querySelectorAll('.sidebar .nav-link').forEach(a => a.classList.remove('active'));
+      document.querySelector('.sidebar .nav-link[data-section="profile"]')?.classList.add('active');
+      showSection('profile');
+      loadSection('profile');
+    });
+  }
 }
 
 function showSection(sec) {
-  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
-  document.getElementById('sec-' + sec)?.classList.add('active');
-  const titles = { home:'Home', employees:'Employees', attendance:'Attendance', timeoff:'Time Off', payroll:'Payroll', reports:'Reports', profile:'Profile', auditlogs:'Audit Logs' };
-  document.getElementById('topTitle').textContent = titles[sec] || sec;
+  document.querySelectorAll('.section').forEach(s => s.classList.add('d-none'));
+  document.getElementById('sec-' + sec)?.classList.remove('d-none');
+  const titles = { employees:'Employees', attendance:'Attendance', timeoff:'Time Off',
+    payroll:'Payroll', reports:'Reports', profile:'My Profile', settings:'Settings',
+    hrpanel:'HR Panel', addEmployee:'Add Employee', mypayslips:'My Payslips' };
+  document.getElementById('pageTitle').textContent = titles[sec] || sec;
 }
 
 function loadSection(sec) {
-  if (sec === 'home')       loadHome();
-  if (sec === 'employees')  loadEmployees();
-  if (sec === 'attendance') loadAttendance();
-  if (sec === 'timeoff')    loadTimeOff();
-  if (sec === 'payroll')    loadPayroll();
-  if (sec === 'reports')    loadReports();
-  if (sec === 'profile')    loadProfile();
-  if (sec === 'auditlogs')  loadAuditLogs();
+  if (sec === 'employees')   loadEmployees();
+  if (sec === 'attendance')  loadAttendance();
+  if (sec === 'timeoff')     loadTimeOff();
+  if (sec === 'payroll')     loadPayroll();
+  if (sec === 'mypayslips')  loadMyPayroll();
+  if (sec === 'reports')     loadReports();
+  if (sec === 'profile')     loadProfile();
+  if (sec === 'hrpanel')     loadHrPanel();
 }
 
 /* ─── UTILS ──────────────────────────────────────────── */
@@ -99,17 +141,18 @@ function showAlert(id, msg, type='error') {
   const el = document.getElementById(id);
   if (!el) return;
   el.textContent = msg;
-  el.className = 'alert ' + type + ' show';
-  setTimeout(() => el.classList.remove('show'), 5000);
+  el.className = 'alert py-2 small ' + (type === 'success' ? 'alert-success' : 'alert-danger');
+  el.classList.remove('d-none');
+  setTimeout(() => el.classList.add('d-none'), 5000);
 }
 
 function badge(status) {
   const cls = {
-    ACTIVE:'active', INACTIVE:'inactive', PRESENT:'present', ABSENT:'absent',
-    APPROVED:'approved', REJECTED:'rejected', PENDING:'pending',
-    GENERATED:'generated', PAID:'paid', CANCELLED:'cancelled'
-  }[status?.toUpperCase()] || 'pending';
-  return `<span class="badge badge-${cls}">${status}</span>`;
+    ACTIVE:'success', INACTIVE:'secondary', PRESENT:'success', ABSENT:'danger',
+    APPROVED:'success', REJECTED:'danger', PENDING:'warning',
+    GENERATED:'warning', PAID:'primary', CANCELLED:'secondary'
+  }[status?.toUpperCase()] || 'warning';
+  return `<span class="badge bg-${cls} badge-custom">${status}</span>`;
 }
 
 function moneyINR(val) {
@@ -126,41 +169,6 @@ function fmtTime(dt) {
   if (!dt) return '—';
   const d = new Date(dt);
   return d.toLocaleTimeString('en-IN', {hour:'2-digit', minute:'2-digit'});
-}
-
-/* ─── HOME / REPORTS ──────────────────────────────────── */
-async function loadHome() {
-  // Auto-cleanup invalid users on first load
-  try { await fetch('/api/admin/cleanup', { method:'POST' }); } catch {}
-  try {
-    const [statsRes, attRes, leavesRes] = await Promise.all([
-      fetch(`/api/admin/stats?email=${encodeURIComponent(user.email)}`),
-      fetch(`/api/attendance/today-status?email=${encodeURIComponent(user.email)}`),
-      fetch(`/api/leaves/my?email=${encodeURIComponent(user.email)}`)
-    ]);
-    const stats  = statsRes.ok  ? await statsRes.json()  : {};
-    const att    = attRes.ok    ? await attRes.json()    : {};
-    const leaves = leavesRes.ok ? await leavesRes.json() : [];
-
-    document.getElementById('statTotal').textContent   = stats.totalEmployees  || 0;
-    document.getElementById('statActive').textContent  = stats.activeEmployees || 0;
-    document.getElementById('statCheckedIn').textContent = att.checkedIn ? 'Yes' : 'No';
-    const pending = leaves.filter(l => l.status === 'PENDING').length;
-    document.getElementById('statPending').textContent = pending;
-  } catch(e) {
-    console.error('loadHome error', e);
-  }
-}
-
-async function loadReports() {
-  try {
-    const res = await fetch(`/api/admin/stats?email=${encodeURIComponent(user.email)}`);
-    const stats = res.ok ? await res.json() : {};
-    document.getElementById('rptTotal').textContent  = stats.totalEmployees  || 0;
-    document.getElementById('rptActive').textContent = stats.activeEmployees || 0;
-  } catch(e) {
-    console.error('loadReports error', e);
-  }
 }
 
 /* ─── EMPLOYEES ───────────────────────────────────────── */
@@ -196,25 +204,27 @@ function renderEmployeeTable(list) {
   const thead = document.getElementById('empHead');
   const isManager = CAN_MANAGE || IS_ADMIN;
 
-  // Dynamic header based on role
   if (thead) {
-    thead.innerHTML = `<tr><th>Login ID</th><th>Name</th><th>Email</th><th>${isManager ? 'Role' : 'Designation'}</th><th>Status</th>${isManager ? '<th>Actions</th>' : ''}</tr>`;
+    thead.innerHTML = `<tr><th>Login ID</th><th>Name</th><th>Email</th><th>${isManager ? 'Role' : 'Designation'}</th><th>Status</th><th>Actions</th></tr>`;
   }
 
-  if (!list.length) { tbody.innerHTML = emptyRow(isManager ? 6 : 5, 'No employees found.'); return; }
-  tbody.innerHTML = list.map((e, i) => `
+  if (!list.length) { tbody.innerHTML = emptyRow(6, 'No employees found.'); return; }
+  tbody.innerHTML = list.map(e => `
     <tr>
-      <td><span style="font-family:monospace;font-size:12px;color:var(--accent2)">${e.loginId||'—'}</span></td>
-      <td><b>${e.firstName} ${e.lastName}</b></td>
-      <td style="color:var(--muted)">${e.email}</td>
+      <td><code class="small">${e.loginId||e.employeeCode||'—'}</code></td>
+      <td><strong>${e.firstName} ${e.lastName}</strong></td>
+      <td class="text-muted">${e.email}</td>
       <td>${e.role ? e.role.replace('_',' ') : (e.designation || '—')}</td>
       <td>${badge(e.status)}</td>
-      ${isManager ? `<td>
-          <button class="btn btn-ghost btn-sm" onclick="toggleUserStatus('${e.loginId}','${e.status}')">
+      <td>
+        <button class="btn btn-outline-secondary btn-sm" onclick="showEmpInfo('${e.loginId||e.employeeCode}')">Info</button>
+        ${isManager ? `
+          <button class="btn btn-outline-${e.status==='ACTIVE'?'warning':'success'} btn-sm ms-1" onclick="toggleUserStatus('${e.loginId}','${e.status}')">
             ${e.status==='ACTIVE' ? 'Deactivate' : 'Activate'}
           </button>
-          <button class="btn btn-danger btn-sm" onclick="removeEmployee('${e.loginId}')" style="margin-left:4px">Remove</button>
-      </td>` : ''}
+          <button class="btn btn-outline-danger btn-sm ms-1" onclick="removeEmployee('${e.loginId}')">Remove</button>
+        ` : ''}
+      </td>
     </tr>`).join('');
 }
 
@@ -227,13 +237,14 @@ function filterEmployees(q) {
 
 async function submitAddEmployee() {
   const payload = {
-    firstName:   document.getElementById('addFirst').value.trim(),
-    lastName:    document.getElementById('addLast').value.trim(),
-    email:       document.getElementById('addEmail').value.trim(),
-    phone:       document.getElementById('addPhone').value.trim(),
-    role:        document.getElementById('addRole').value,
-    designation: document.getElementById('addDesig').value.trim(),
-    requestedBy: user.email
+    firstName:        document.getElementById('addFirstName').value.trim(),
+    lastName:         document.getElementById('addLastName').value.trim(),
+    email:            document.getElementById('addEmail').value.trim(),
+    phone:            document.getElementById('addPhone').value.trim(),
+    role:             document.getElementById('addRole').value,
+    designation:      document.getElementById('addDesignation').value.trim(),
+    hrManagerLoginId: document.getElementById('addHrManager').value,
+    requestedBy:      user.email
   };
   if (!payload.firstName || !payload.lastName || !payload.email) {
     showAlert('addEmpAlert','First name, last name and email are required.'); return;
@@ -245,10 +256,30 @@ async function submitAddEmployee() {
     const data = await res.json();
     if (res.ok) {
       showAlert('addEmpAlert', `✓ Created! Login ID: ${data.loginId} — Password sent to ${data.email}`, 'success');
-      document.getElementById('addEmpForm').reset();
       loadEmployees();
     } else { showAlert('addEmpAlert', data.message); }
   } catch { showAlert('addEmpAlert','Network error.'); }
+}
+
+async function showEmpInfo(code) {
+  try {
+    const res = await fetch(`/api/employees/info/${encodeURIComponent(code)}`);
+    if (!res.ok) return;
+    const e = await res.json();
+    document.getElementById('empInfoContent').innerHTML = `
+      <table class="table table-sm">
+        <tr><td class="text-muted" style="width:40%">Name</td><td><strong>${e.firstName} ${e.lastName}</strong></td></tr>
+        <tr><td class="text-muted">Code</td><td>${e.employeeCode}</td></tr>
+        <tr><td class="text-muted">Email</td><td>${e.email}</td></tr>
+        <tr><td class="text-muted">Phone</td><td>${e.phone||'—'}</td></tr>
+        <tr><td class="text-muted">Designation</td><td>${e.designation||'—'}</td></tr>
+        <tr><td class="text-muted">Joining Date</td><td>${e.joiningDate}</td></tr>
+        <tr><td class="text-muted">Employment Type</td><td>${e.employmentType}</td></tr>
+        <tr><td class="text-muted">Status</td><td>${badge(e.status)}</td></tr>
+        <tr><td class="text-muted">HR Manager</td><td>${e.hrManager||'—'}</td></tr>
+      </table>`;
+    new bootstrap.Modal(document.getElementById('empInfoModal')).show();
+  } catch {}
 }
 
 async function removeEmployee(loginId) {
@@ -276,11 +307,21 @@ let todayAtt = {};
 
 async function loadAttendance() {
   await loadTodayStatus();
-  if (IS_EMPLOYEE || ROLE === 'HR_OFFICER') {
-    switchAttTab('my');
-  } else {
-    switchAttTab('all');
-  }
+  await loadMyAttendance();
+}
+
+async function loadMyAttendance() {
+  const res = await fetch(`/api/attendance/my?email=${encodeURIComponent(user.email)}`);
+  const list = res.ok ? await res.json() : [];
+  const tbody = document.getElementById('attBody');
+  tbody.innerHTML = list.length ? list.map(a => `
+    <tr>
+      <td>${a.date}</td>
+      <td>${fmtTime(a.checkIn)}</td>
+      <td>${fmtTime(a.checkOut)}</td>
+      <td>${a.totalHours ? a.totalHours + 'h' : '—'}</td>
+      <td>${badge(a.status)}</td>
+    </tr>`).join('') : emptyRow(5);
 }
 
 async function loadTodayStatus() {
@@ -292,19 +333,22 @@ async function loadTodayStatus() {
 }
 
 function renderCheckinCard() {
-  const card = document.getElementById('checkinCard');
-  const btnArea = document.getElementById('checkinBtnArea');
-  const statusEl = document.getElementById('checkinStatus');
+  const statusEl = document.getElementById('attStatus');
+  const btnIn = document.getElementById('btnCheckin');
+  const btnOut = document.getElementById('btnCheckout');
 
   if (todayAtt.checkedIn && todayAtt.checkedOut) {
-    statusEl.innerHTML = `<span style="color:var(--success)">✓ Checked in at ${fmtTime(todayAtt.checkIn)} &nbsp;·&nbsp; Checked out at ${fmtTime(todayAtt.checkOut)}</span>`;
-    btnArea.innerHTML = `<span style="color:var(--muted);font-size:13px">Done for today ✓</span>`;
+    statusEl.innerHTML = `<span class="text-success">✓ Checked in at ${fmtTime(todayAtt.checkIn)} · Checked out at ${fmtTime(todayAtt.checkOut)}</span>`;
+    btnIn.classList.add('d-none');
+    btnOut.classList.add('d-none');
   } else if (todayAtt.checkedIn) {
-    statusEl.innerHTML = `<span style="color:var(--warning)">● Checked in at ${fmtTime(todayAtt.checkIn)}</span>`;
-    btnArea.innerHTML = `<button class="btn-checkout" onclick="doCheckout()">Check Out</button>`;
+    statusEl.innerHTML = `<span class="text-warning">● Checked in at ${fmtTime(todayAtt.checkIn)}</span>`;
+    btnIn.classList.add('d-none');
+    btnOut.classList.remove('d-none');
   } else {
-    statusEl.innerHTML = `<span style="color:var(--muted)">Not checked in yet</span>`;
-    btnArea.innerHTML = `<button class="btn-checkin" onclick="doCheckin()">Check In</button>`;
+    statusEl.innerHTML = `<span class="text-muted">Not checked in yet</span>`;
+    btnIn.classList.remove('d-none');
+    btnOut.classList.add('d-none');
   }
 }
 
@@ -318,82 +362,46 @@ function updateClock() {
 }
 setInterval(updateClock, 1000);
 
-async function doCheckin() {
+async function doCheckIn() {
   try {
     const res = await fetch('/api/attendance/checkin', {
       method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({email: user.email})
     });
     const data = await res.json();
-    showAlert('attAlert', res.ok ? '✓ ' + data.message : data.message, res.ok ? 'success':'error');
     if (res.ok) { await loadTodayStatus(); loadMyAttendance(); }
-  } catch { showAlert('attAlert','Network error.'); }
+    else alert(data.message);
+  } catch { alert('Network error.'); }
 }
 
-async function doCheckout() {
+async function doCheckOut() {
   try {
     const res = await fetch('/api/attendance/checkout', {
       method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({email: user.email})
     });
     const data = await res.json();
-    showAlert('attAlert', res.ok ? '✓ ' + data.message : data.message, res.ok ? 'success':'error');
     if (res.ok) { await loadTodayStatus(); loadMyAttendance(); }
-  } catch { showAlert('attAlert','Network error.'); }
-}
-
-function switchAttTab(tab) {
-  document.querySelectorAll('#attTabs .tab-btn').forEach(b => b.classList.remove('active'));
-  document.getElementById('attTab-'+tab)?.classList.add('active');
-  document.getElementById('attMy').style.display  = tab==='my'  ? 'block':'none';
-  document.getElementById('attAll').style.display = tab==='all' ? 'block':'none';
-  if (tab==='my')  loadMyAttendance();
-  if (tab==='all') loadAllAttendance();
-}
-
-async function loadMyAttendance() {
-  const res = await fetch(`/api/attendance/my?email=${encodeURIComponent(user.email)}`);
-  const list = res.ok ? await res.json() : [];
-  const tbody = document.getElementById('myAttBody');
-  tbody.innerHTML = list.length ? list.map(a => `
-    <tr>
-      <td>${a.date}</td>
-      <td>${fmtTime(a.checkIn)}</td>
-      <td>${fmtTime(a.checkOut)}</td>
-      <td>${a.totalHours ? a.totalHours + 'h' : '—'}</td>
-      <td>${badge(a.status)}</td>
-    </tr>`).join('') : emptyRow(5);
-}
-
-async function loadAllAttendance() {
-  const m = document.getElementById('attMonth').value;
-  const y = document.getElementById('attYear').value;
-  const res = await fetch(`/api/attendance/all?email=${encodeURIComponent(user.email)}&month=${m}&year=${y}`);
-  const list = res.ok ? await res.json() : [];
-  const tbody = document.getElementById('allAttBody');
-  tbody.innerHTML = list.length ? list.map(a => `
-    <tr>
-      <td><b>${a.employeeName}</b><br><span style="color:var(--muted);font-size:11px">${a.employeeCode}</span></td>
-      <td>${a.date}</td>
-      <td>${fmtTime(a.checkIn)}</td>
-      <td>${fmtTime(a.checkOut)}</td>
-      <td>${a.totalHours ? a.totalHours + 'h' : '—'}</td>
-      <td>${badge(a.status)}</td>
-    </tr>`).join('') : emptyRow(6);
+    else alert(data.message);
+  } catch { alert('Network error.'); }
 }
 
 /* ─── TIME OFF / LEAVE ────────────────────────────────── */
 function loadTimeOff() {
-  loadLeaveBalance();
-  switchLeaveTab('my');
+  if (IS_ADMIN || IS_HR) {
+    document.getElementById('btnApproveTab')?.classList.remove('d-none');
+  }
+  switchTimeoffTab('apply');
 }
 
-function switchLeaveTab(tab) {
-  document.querySelectorAll('#leaveTabs .tab-btn').forEach(b => b.classList.remove('active'));
-  document.getElementById('leaveTab-'+tab)?.classList.add('active');
-  document.getElementById('leaveApply').style.display = tab==='apply' ? 'block':'none';
-  document.getElementById('leaveMy').style.display    = tab==='my'    ? 'block':'none';
-  document.getElementById('leaveAll').style.display   = tab==='all'   ? 'block':'none';
-  if (tab==='my')  loadMyLeaves();
-  if (tab==='all') loadAllLeaves();
+function switchTimeoffTab(tab) {
+  document.querySelectorAll('#timeoffTabs .nav-link').forEach(b => b.classList.remove('active'));
+  const idx = {apply:0, my:1, approve:2}[tab] || 0;
+  const btns = document.querySelectorAll('#timeoffTabs .nav-item .nav-link');
+  if (btns[idx]) btns[idx].classList.add('active');
+  document.getElementById('timeoffApply').classList.toggle('d-none', tab!=='apply');
+  document.getElementById('timeoffMy').classList.toggle('d-none', tab!=='my');
+  document.getElementById('timeoffApprove').classList.toggle('d-none', tab!=='approve');
+  if (tab==='my') loadMyLeaves();
+  if (tab==='approve') loadAllLeaves();
 }
 
 async function submitLeave() {
@@ -418,38 +426,36 @@ async function submitLeave() {
 async function loadMyLeaves() {
   const res = await fetch(`/api/leaves/my?email=${encodeURIComponent(user.email)}`);
   const list = res.ok ? await res.json() : [];
-  const tbody = document.getElementById('myLeaveBody');
+  const tbody = document.getElementById('myLeavesBody');
   tbody.innerHTML = list.length ? list.map(l => `
     <tr>
       <td>${l.leaveType}</td>
       <td>${l.startDate}</td>
       <td>${l.endDate}</td>
-      <td style="max-width:200px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${l.reason||'—'}</td>
       <td>${badge(l.status)}</td>
+      <td class="small">${l.reason||'—'}</td>
     </tr>`).join('') : emptyRow(5);
 }
 
 async function loadAllLeaves() {
   const res = await fetch(`/api/leaves/all?email=${encodeURIComponent(user.email)}`);
   const list = res.ok ? await res.json() : [];
-  const tbody = document.getElementById('allLeaveBody');
+  const tbody = document.getElementById('approveLeavesBody');
   tbody.innerHTML = list.length ? list.map(l => `
     <tr>
-      <td><b>${l.employeeName}</b><br><span style="color:var(--muted);font-size:11px">${l.employeeCode}</span></td>
+      <td><strong>${l.employeeName}</strong><br><small class="text-muted">${l.employeeCode}</small></td>
       <td>${l.leaveType}</td>
-      <td>${l.startDate} → ${l.endDate}</td>
-      <td style="max-width:160px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${l.reason||'—'}</td>
+      <td>${l.startDate}</td>
+      <td>${l.endDate}</td>
+      <td class="small">${l.reason||'—'}</td>
       <td>${badge(l.status)}</td>
       <td>
         ${l.status==='PENDING' && (CAN_PAYROLL||CAN_MANAGE) ? `
           <button class="btn btn-success btn-sm" onclick="updateLeave('${l.id}','APPROVED')">Approve</button>
-          <button class="btn btn-danger btn-sm" onclick="updateLeave('${l.id}','REJECTED')" style="margin-left:4px">Reject</button>
-        ` : ''}
-        ${l.status==='PENDING' && l.employeeCode===user.loginId ? `
-          <button class="btn btn-ghost btn-sm" onclick="updateLeave('${l.id}','CANCELLED')">Cancel</button>
+          <button class="btn btn-danger btn-sm ms-1" onclick="updateLeave('${l.id}','REJECTED')">Reject</button>
         ` : ''}
       </td>
-    </tr>`).join('') : emptyRow(6);
+    </tr>`).join('') : emptyRow(7);
 }
 
 async function updateLeave(id, status) {
@@ -462,25 +468,21 @@ async function updateLeave(id, status) {
   else alert(data.message);
 }
 
-/* ─── PAYROLL ─────────────────────────────────────────── */
+/* ─── PAYROLL (HR only) ───────────────────────────────── */
 function loadPayroll() {
-  // Hide generate & all tabs for employees
-  if (IS_EMPLOYEE) {
-    document.getElementById('payrollTab-generate').style.display = 'none';
-    document.getElementById('payrollTab-all').style.display = 'none';
-  }
-  switchPayrollTab('my');
+  // HR-only: show generate + all payrolls
+  populateEmployeeDropdown();
+  switchPayrollTab('generate');
 }
 
 function switchPayrollTab(tab) {
-  document.querySelectorAll('#payrollTabs .tab-btn').forEach(b => b.classList.remove('active'));
-  document.getElementById('payrollTab-'+tab)?.classList.add('active');
-  document.getElementById('payrollMy').style.display       = tab==='my'       ? 'block':'none';
-  document.getElementById('payrollGenerate').style.display = tab==='generate' ? 'block':'none';
-  document.getElementById('payrollAll').style.display      = tab==='all'      ? 'block':'none';
-  if (tab==='my')       loadMyPayroll();
-  if (tab==='all')      loadAllPayroll();
-  if (tab==='generate') populateEmployeeDropdown();
+  document.querySelectorAll('#sec-payroll .nav-link').forEach(b => b.classList.remove('active'));
+  const btns = document.querySelectorAll('#sec-payroll .nav-item .nav-link');
+  if (tab==='generate' && btns[0]) btns[0].classList.add('active');
+  if (tab==='all' && btns[1]) btns[1].classList.add('active');
+  document.getElementById('payrollGenerate').classList.toggle('d-none', tab!=='generate');
+  document.getElementById('payrollAll').classList.toggle('d-none', tab!=='all');
+  if (tab==='all') loadAllPayroll();
 }
 
 function renderPayslipCard(p) {
@@ -520,7 +522,8 @@ function renderPayslipCard(p) {
       <div class="payslip-footer">
         <span>Net Pay</span>
         <div style="display:flex;align-items:center;gap:12px">
-          <button class="btn btn-ghost btn-sm" onclick="downloadPayslipPdf('${p.id}')">⬇ Download PDF</button>
+          <button class="btn btn-ghost btn-sm" onclick="downloadPayslipTxt('${p.id}')">⬇ Download .txt</button>
+          <button class="btn btn-ghost btn-sm" onclick="downloadPayslipPdf('${p.id}')" style="margin-left:4px">⬇ PDF</button>
           <span class="payslip-net-big">${moneyINR(p.netSalary)}</span>
         </div>
       </div>
@@ -528,10 +531,25 @@ function renderPayslipCard(p) {
 }
 
 async function loadMyPayroll() {
+  // Get filter values if available
+  const monthSel = document.getElementById('empPayMonth');
+  const yearSel = document.getElementById('empPayYear');
+  const filterMonth = monthSel ? parseInt(monthSel.value) : 0;
+  const filterYear = yearSel ? parseInt(yearSel.value) : new Date().getFullYear();
+
   const res = await fetch(`/api/payroll/my?email=${encodeURIComponent(user.email)}`);
-  const list = res.ok ? await res.json() : [];
-  const container = document.getElementById('myPayrollList');
-  if (!list.length) { container.innerHTML = '<p style="color:var(--muted);text-align:center;padding:40px">No payslips generated yet.</p>'; return; }
+  let list = res.ok ? await res.json() : [];
+
+  // Apply client-side month/year filter
+  if (filterMonth > 0) {
+    list = list.filter(p => p.payMonth === filterMonth && p.payYear === filterYear);
+  } else {
+    list = list.filter(p => p.payYear === filterYear);
+  }
+
+  const container = document.getElementById('myPayslipsList');
+  if (!container) return;
+  if (!list.length) { container.innerHTML = '<p class="text-muted text-center py-5">No payslips found for this period.</p>'; return; }
   container.innerHTML = list.map(p => renderPayslipCard(p)).join('');
 }
 
@@ -565,36 +583,33 @@ async function submitGeneratePayroll() {
 }
 
 async function loadAllPayroll() {
-  const m = document.getElementById('payMonth').value;
-  const y = document.getElementById('payYear').value;
+  const m = document.getElementById('filterPayMonth')?.value || 0;
+  const y = document.getElementById('filterPayYear')?.value || new Date().getFullYear();
   const res = await fetch(`/api/payroll/all?email=${encodeURIComponent(user.email)}&month=${m}&year=${y}`);
   const list = res.ok ? await res.json() : [];
-  const tbody = document.getElementById('allPayrollBody');
-  tbody.innerHTML = list.length ? list.map(p => {
-    const presentLabel = (p.presentDays === 0 && p.leavesTaken === 0) ? 'Full' : `${p.presentDays}/${p.totalWorkingDays}`;
-    return `
+  const tbody = document.getElementById('allPayBody');
+  if (!tbody) return;
+  tbody.innerHTML = list.length ? list.map(p => `
     <tr>
-      <td><b>${p.employeeName}</b><br><span style="color:var(--muted);font-size:11px">${p.employeeCode}</span></td>
+      <td><strong>${p.employeeName}</strong><br><small class="text-muted">${p.employeeCode}</small></td>
       <td>${monthName(p.payMonth)} ${p.payYear}</td>
-      <td>${presentLabel}</td>
       <td>${moneyINR(p.grossSalary)}</td>
-      <td style="color:var(--danger)">- ${moneyINR(p.totalDeductions)}</td>
-      <td style="color:var(--success);font-weight:600">${moneyINR(p.netSalary)}</td>
+      <td class="fw-semibold text-success">${moneyINR(p.netSalary)}</td>
       <td>${badge(p.status)}</td>
       <td>
-        <button class="btn btn-ghost btn-sm" onclick="viewPayslip('${p.id}')">View</button>
-        ${p.status==='GENERATED' ? `<button class="btn btn-success btn-sm" onclick="markPaid('${p.id}')" style="margin-left:4px">Mark Paid</button>` : ''}
+        <button class="btn btn-outline-secondary btn-sm" onclick="viewPayslip('${p.id}')">View</button>
+        <button class="btn btn-outline-primary btn-sm ms-1" onclick="downloadPayslipTxt('${p.id}')">TXT</button>
+        ${p.status==='GENERATED' ? `<button class="btn btn-success btn-sm ms-1" onclick="markPaid('${p.id}')">Mark Paid</button>` : ''}
       </td>
     </tr>
-    <tr id="slip-${p.id}" style="display:none">
-      <td colspan="8" style="padding:0">${renderPayslipCard(p)}</td>
-    </tr>`;
-  }).join('') : emptyRow(8);
+    <tr id="slip-${p.id}" class="d-none">
+      <td colspan="6" style="padding:0">${renderPayslipCard(p)}</td>
+    </tr>`).join('') : emptyRow(6);
 }
 
 function viewPayslip(id) {
   const row = document.getElementById('slip-' + id);
-  if (row) row.style.display = row.style.display === 'none' ? 'table-row' : 'none';
+  if (row) row.classList.toggle('d-none');
 }
 
 async function markPaid(id) {
@@ -610,42 +625,48 @@ async function loadProfile() {
     const res = await fetch(`/api/employees/profile?email=${encodeURIComponent(user.email)}`);
     const p = res.ok ? await res.json() : {};
     const initials = ((p.firstName||'')[0]||'') + ((p.lastName||'')[0]||'');
-    document.getElementById('profAvatarInit').textContent = initials.toUpperCase();
-    document.getElementById('profName').textContent = (p.firstName||'') + ' ' + (p.lastName||'');
-    document.getElementById('profRoleLine').textContent = (p.role||'').replace('_',' ');
-    document.getElementById('profEmpCode').textContent = p.employeeCode ? 'ID: ' + p.employeeCode : '';
+    document.getElementById('profileInitials').textContent = initials.toUpperCase();
+    document.getElementById('profileName').textContent = (p.firstName||'') + ' ' + (p.lastName||'');
+    document.getElementById('profileRole').textContent = (p.role||'').replace('_',' ');
+    document.getElementById('profileEmail').textContent = p.email||'—';
+    document.getElementById('profileMobile').textContent = p.phone||'—';
+    document.getElementById('profileDepartment').textContent = p.designation||'—';
+    document.getElementById('profileManager').textContent = p.hrManager||'—';
 
     document.getElementById('profFirstName').value  = p.firstName||'';
     document.getElementById('profLastName').value   = p.lastName||'';
+    document.getElementById('profEmail').value      = p.email||'';
     document.getElementById('profPhone').value      = p.phone||'';
-    document.getElementById('profDesig').value      = p.designation||'';
-    document.getElementById('profBank').value       = p.bankAccountNo||'';
-    document.getElementById('profPAN').value        = p.panNumber||'';
-    document.getElementById('profSalary').value     = p.basicSalary||'';
-    document.getElementById('profJoining').value    = p.joiningDate||'';
-    document.getElementById('profEmpType').value    = p.employmentType||'';
+    document.getElementById('profDesignation').value = p.designation||'';
+    document.getElementById('profEmpCode').value    = p.employeeCode||'';
+    document.getElementById('profBankAccount').value = p.bankAccountNo||'';
+    document.getElementById('profPanNumber').value   = p.panNumber||'';
+    document.getElementById('profAadhaar').value     = p.aadhaarNumber||'';
+    document.getElementById('profJoiningDate').value = p.joiningDate||'';
+    document.getElementById('profEmploymentType').value = p.employmentType||'';
+    document.getElementById('profHrManager').value   = p.hrManager||'';
   } catch(e) { console.error(e); }
 }
 
 async function saveProfile() {
   const payload = {
-    email:       user.email,
-    firstName:   document.getElementById('profFirstName').value.trim(),
-    lastName:    document.getElementById('profLastName').value.trim(),
-    phone:       document.getElementById('profPhone').value.trim(),
-    designation: document.getElementById('profDesig').value.trim(),
-    bankAccountNo: document.getElementById('profBank').value.trim(),
-    panNumber:   document.getElementById('profPAN').value.trim()
+    email:         user.email,
+    firstName:     document.getElementById('profFirstName').value.trim(),
+    lastName:      document.getElementById('profLastName').value.trim(),
+    phone:         document.getElementById('profPhone').value.trim(),
+    designation:   document.getElementById('profDesignation').value.trim(),
+    bankAccountNo: document.getElementById('profBankAccount').value.trim(),
+    panNumber:     document.getElementById('profPanNumber').value.trim(),
+    aadhaarNumber: document.getElementById('profAadhaar').value.trim()
   };
-  if (CAN_PAYROLL) payload.basicSalary = document.getElementById('profSalary').value;
   try {
     const res = await fetch('/api/employees/profile', {
       method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)
     });
     const data = await res.json();
-    showAlert('profAlert', res.ok ? '✓ Profile updated.' : data.message, res.ok?'success':'error');
+    showAlert('profileAlert', res.ok ? '✓ Profile updated.' : data.message, res.ok?'success':'error');
     if (res.ok) loadProfile();
-  } catch { showAlert('profAlert','Network error.'); }
+  } catch { showAlert('profileAlert','Network error.'); }
 }
 
 /* ─── NOTIFICATIONS ──────────────────────────────────── */
@@ -703,119 +724,177 @@ document.addEventListener('click', e => {
   }
 });
 
-/* ─── LEAVE BALANCE ──────────────────────────────────── */
-async function loadLeaveBalance() {
+/* ─── PAYSLIP DOWNLOADS ─────────────────────────────── */
+function downloadPayslipPdf(id) { window.open(`/api/payroll/${id}/pdf`, '_blank'); }
+function downloadPayslipTxt(id) { window.open(`/api/payroll/${id}/txt`, '_blank'); }
+
+/* ─── HR MANAGER DROPDOWN ────────────────────────────── */
+async function populateHrManagerDropdown() {
+  const sel = document.getElementById('addHrManager');
+  if (!sel) return;
   try {
-    const res = await fetch(`/api/leaves/balance?email=${encodeURIComponent(user.email)}`);
-    if (!res.ok) return;
-    const balances = await res.json();
-    const grid = document.getElementById('leaveBalanceGrid');
-    if (!grid) return;
-    const colors = { CASUAL: '#6c63ff', SICK: '#ef4444', EARNED: '#22c55e' };
-    grid.innerHTML = balances.map(b => `
-      <div class="stat-card" style="--card-accent:${colors[b.leaveType] || '#f59e0b'}">
-        <div class="stat-label">${b.leaveType} Leave</div>
-        <div class="stat-value">${b.remainingDays}<span style="font-size:14px;color:var(--muted)">/${b.totalDays}</span></div>
-        <div class="stat-sub">${b.usedDays} used</div>
-      </div>
-    `).join('');
+    const res = await fetch('/api/admin/hr-managers');
+    const hrs = res.ok ? await res.json() : [];
+    sel.innerHTML = '<option value="">— No HR Manager —</option>' +
+      hrs.map(h => `<option value="${h.loginId}">${h.name} (${h.email})</option>`).join('');
   } catch {}
 }
 
-/* ─── REPORTS (Charts) ───────────────────────────────── */
-let chartPayrollInstance = null;
-let chartLeaveInstance = null;
+/* ─── HR PANEL ───────────────────────────────────────── */
+let hrTeamData = [];
+let hrSalaryEmpCode = '';
+
+async function loadHrPanel() {
+  try {
+    const res = await fetch(`/api/employees/hr-team?email=${encodeURIComponent(user.email)}`);
+    hrTeamData = res.ok ? await res.json() : [];
+  } catch { hrTeamData = []; }
+  renderHrTeam();
+  populateHrAttDropdown();
+}
+
+function renderHrTeam() {
+  const tbody = document.getElementById('hrTeamBody');
+  if (!tbody) return;
+  if (!hrTeamData.length) { tbody.innerHTML = emptyRow(8, 'No employees assigned to you.'); return; }
+  tbody.innerHTML = hrTeamData.map(e => `
+    <tr>
+      <td><code class="small">${e.employeeCode}</code></td>
+      <td><strong>${e.firstName} ${e.lastName}</strong></td>
+      <td>${e.designation||'—'}</td>
+      <td>${e.bankAccountNo ? '<i class="bi bi-check-circle-fill text-success"></i>' : '<i class="bi bi-x-circle text-danger"></i>'}</td>
+      <td>${e.panNumber ? '<i class="bi bi-check-circle-fill text-success"></i>' : '<i class="bi bi-x-circle text-danger"></i>'}</td>
+      <td>${e.aadhaarNumber ? '<i class="bi bi-check-circle-fill text-success"></i>' : '<i class="bi bi-x-circle text-danger"></i>'}</td>
+      <td>${moneyINR(e.basicSalary)}</td>
+      <td><button class="btn btn-primary btn-sm" onclick="openHrSalaryForm('${e.employeeCode}','${e.firstName} ${e.lastName}')">Set Salary</button></td>
+    </tr>`).join('');
+}
+
+function openHrSalaryForm(code, name) {
+  hrSalaryEmpCode = code;
+  document.getElementById('hrSalaryTitle').textContent = 'Set Salary — ' + name;
+  document.getElementById('hrSalaryForm').classList.remove('d-none');
+  const emp = hrTeamData.find(e => e.employeeCode === code);
+  if (emp) {
+    document.getElementById('hrBasicSalary').value = emp.basicSalary || '';
+    document.getElementById('hrDesignation').value = emp.designation || '';
+  }
+}
+
+function closeHrSalaryForm() {
+  document.getElementById('hrSalaryForm').classList.add('d-none');
+  hrSalaryEmpCode = '';
+}
+
+async function submitHrSalary() {
+  const payload = {
+    hrEmail: user.email,
+    employeeCode: hrSalaryEmpCode,
+    basicSalary: document.getElementById('hrBasicSalary').value,
+    designation: document.getElementById('hrDesignation').value.trim(),
+    employmentType: document.getElementById('hrEmploymentType').value,
+    pfNumber: document.getElementById('hrPfNumber').value.trim()
+  };
+  try {
+    const res = await fetch('/api/employees/salary', {
+      method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    showAlert('hrSalaryAlert', res.ok ? '✓ Salary updated.' : data.message, res.ok?'success':'error');
+    if (res.ok) { closeHrSalaryForm(); loadHrPanel(); }
+  } catch { showAlert('hrSalaryAlert','Network error.'); }
+}
+
+function populateHrAttDropdown() {
+  const sel = document.getElementById('hrAttEmpCode');
+  if (!sel) return;
+  sel.innerHTML = '<option value="">— Select —</option>' +
+    hrTeamData.map(e => `<option value="${e.employeeCode}">${e.firstName} ${e.lastName}</option>`).join('');
+}
+
+async function fetchHrAttendance() {
+  const code = document.getElementById('hrAttEmpCode')?.value;
+  const month = document.getElementById('hrAttMonth')?.value;
+  const year = document.getElementById('hrAttYear')?.value;
+  if (!code) { alert('Select an employee.'); return; }
+  try {
+    const emp = hrTeamData.find(e => e.employeeCode === code);
+    if (!emp) return;
+    const res = await fetch(`/api/attendance/my?email=${encodeURIComponent(emp.email)}`);
+    const list = res.ok ? await res.json() : [];
+    const filtered = list.filter(a => {
+      const d = new Date(a.date);
+      return (d.getMonth()+1) == month && d.getFullYear() == year;
+    });
+    const tbody = document.getElementById('hrAttBody');
+    const wrap = document.getElementById('hrAttTableWrap');
+    if (wrap) wrap.hidden = false;
+    tbody.innerHTML = filtered.length ? filtered.map(a => `
+      <tr>
+        <td>${a.date}</td><td>${fmtTime(a.checkIn)}</td><td>${fmtTime(a.checkOut)}</td>
+        <td>${a.totalHours ? a.totalHours + 'h' : '—'}</td><td>${badge(a.status)}</td>
+      </tr>`).join('') : emptyRow(5, 'No attendance records found.');
+  } catch { alert('Error fetching attendance.'); }
+}
+
+/* ─── REPORTS ────────────────────────────────────────── */
+let reportChart1 = null, reportChart2 = null;
 
 async function loadReports() {
   try {
     const statsRes = await fetch(`/api/admin/stats?email=${encodeURIComponent(user.email)}`);
-    if (statsRes.ok) {
-      const stats = await statsRes.json();
-      document.getElementById('rptTotal').textContent = stats.totalEmployees ?? '—';
-      document.getElementById('rptActive').textContent = stats.activeEmployees ?? '—';
-    }
+    const stats = statsRes.ok ? await statsRes.json() : {};
+    document.getElementById('reportStats').innerHTML = `
+      <div class="col-md-3"><div class="card border-0 shadow-sm stat-card"><div class="card-body">
+        <div class="text-muted small fw-semibold text-uppercase">Total Employees</div>
+        <div class="display-6 fw-bold">${stats.totalEmployees||0}</div>
+      </div></div></div>
+      <div class="col-md-3"><div class="card border-0 shadow-sm" style="border-left:3px solid #198754!important"><div class="card-body">
+        <div class="text-muted small fw-semibold text-uppercase">Active</div>
+        <div class="display-6 fw-bold text-success">${stats.activeEmployees||0}</div>
+      </div></div></div>`;
   } catch {}
 
-  // Payroll chart
+  // Chart 1: Payroll trend (last 6 months)
   try {
     const now = new Date();
-    const payrollData = [];
-    const payrollLabels = [];
+    const labels = [], data = [];
     for (let i = 5; i >= 0; i--) {
       const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      const m = d.getMonth() + 1;
-      const y = d.getFullYear();
-      payrollLabels.push(monthName(m) + ' ' + y);
-      try {
-        const res = await fetch(`/api/payroll/all?email=${encodeURIComponent(user.email)}&month=${m}&year=${y}`);
-        const list = res.ok ? await res.json() : [];
-        const total = list.reduce((s, p) => s + (parseFloat(p.netSalary) || 0), 0);
-        payrollData.push(total);
-      } catch { payrollData.push(0); }
+      labels.push(MONTHS[d.getMonth()] + ' ' + d.getFullYear());
+      const m = d.getMonth()+1, y = d.getFullYear();
+      const res = await fetch(`/api/payroll/all?email=${encodeURIComponent(user.email)}&month=${m}&year=${y}`);
+      const list = res.ok ? await res.json() : [];
+      data.push(list.reduce((s,p) => s + parseFloat(p.netSalary||0), 0));
     }
-
-    if (chartPayrollInstance) chartPayrollInstance.destroy();
-    const ctx1 = document.getElementById('chartPayroll');
-    if (ctx1) {
-      chartPayrollInstance = new Chart(ctx1.getContext('2d'), {
-        type: 'bar',
-        data: {
-          labels: payrollLabels,
-          datasets: [{ label: 'Total Net Pay (₹)', data: payrollData,
-            backgroundColor: 'rgba(108,99,255,0.5)', borderColor: '#6c63ff', borderWidth: 1 }]
-        },
-        options: { responsive: true, plugins: { legend: { labels: { color: '#8892a4' } } },
-          scales: { x: { ticks: { color: '#8892a4' } }, y: { ticks: { color: '#8892a4' } } } }
-      });
-    }
+    if (reportChart1) reportChart1.destroy();
+    reportChart1 = new Chart(document.getElementById('reportChart1'), {
+      type: 'bar',
+      data: { labels, datasets: [{ label:'Total Net Payout (₹)', data, backgroundColor:'rgba(13,110,253,0.6)', borderRadius:4 }] },
+      options: { responsive:true, plugins:{ title:{ display:true, text:'Monthly Payroll Trend' } } }
+    });
   } catch {}
 
-  // Leave chart
+  // Chart 2: Leave breakdown
   try {
-    const balRes = await fetch(`/api/leaves/balance?email=${encodeURIComponent(user.email)}`);
-    const balances = balRes.ok ? await balRes.json() : [];
-    if (chartLeaveInstance) chartLeaveInstance.destroy();
-    const ctx2 = document.getElementById('chartLeave');
-    if (ctx2 && balances.length) {
-      chartLeaveInstance = new Chart(ctx2.getContext('2d'), {
-        type: 'doughnut',
-        data: {
-          labels: balances.map(b => b.leaveType),
-          datasets: [{ data: balances.map(b => b.usedDays),
-            backgroundColor: ['#6c63ff', '#ef4444', '#22c55e', '#f59e0b'] }]
-        },
-        options: { responsive: true, plugins: { legend: { labels: { color: '#8892a4' } } } }
-      });
-    }
+    const res = await fetch(`/api/leaves/all?email=${encodeURIComponent(user.email)}`);
+    const list = res.ok ? await res.json() : [];
+    const counts = {APPROVED:0, PENDING:0, REJECTED:0};
+    list.forEach(l => { if (counts[l.status] !== undefined) counts[l.status]++; });
+    if (reportChart2) reportChart2.destroy();
+    reportChart2 = new Chart(document.getElementById('reportChart2'), {
+      type: 'doughnut',
+      data: { labels:['Approved','Pending','Rejected'], datasets:[{ data:[counts.APPROVED,counts.PENDING,counts.REJECTED], backgroundColor:['#198754','#ffc107','#dc3545'] }] },
+      options: { responsive:true, plugins:{ title:{ display:true, text:'Leave Status Breakdown' } } }
+    });
   } catch {}
-}
-
-/* ─── AUDIT LOGS ─────────────────────────────────────── */
-async function loadAuditLogs() {
-  const module = document.getElementById('auditModule')?.value || '';
-  const url = `/api/audit-logs?email=${encodeURIComponent(user.email)}${module ? '&module=' + module : ''}`;
-  try {
-    const res = await fetch(url);
-    const logs = res.ok ? await res.json() : [];
-    const tbody = document.getElementById('auditBody');
-    if (!tbody) return;
-    tbody.innerHTML = logs.length ? logs.map(l => `
-      <tr>
-        <td style="white-space:nowrap;font-size:11px;color:var(--muted)">${new Date(l.createdAt).toLocaleString()}</td>
-        <td>${l.user}</td>
-        <td><span class="badge badge-${l.action.includes('DELETE') ? 'absent' : l.action.includes('CREATE') ? 'present' : 'pending'}">${l.action}</span></td>
-        <td>${l.module}</td>
-        <td style="font-size:11px">${l.newValue || '—'}</td>
-      </tr>
-    `).join('') : emptyRow(5);
-  } catch {}
-}
-
-/* ─── PAYSLIP PDF DOWNLOAD ───────────────────────────── */
-function downloadPayslipPdf(id) {
-  window.open(`/api/payroll/${id}/pdf`, '_blank');
 }
 
 /* ─── LOGOUT ──────────────────────────────────────────── */
 function logout() { sessionStorage.clear(); window.location.href = '/index.html'; }
 
+/* ─── BOOTSTRAP NOTIFICATION HELPERS ─────────────────── */
+function toggleNotifications() {
+  // Bootstrap handles dropdown via data-bs-toggle, this is a fallback
+}
+function markAllRead() { markAllNotifRead(); }

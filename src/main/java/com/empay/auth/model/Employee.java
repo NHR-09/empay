@@ -42,8 +42,15 @@ public class Employee {
     @Column(name = "pan_number")
     private String panNumber;
 
+    @Column(name = "aadhaar_number")
+    private String aadhaarNumber;
+
     @Column(name = "pf_number")
     private String pfNumber;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "hr_manager_id")
+    private User hrManager;
 
     private String status = "ACTIVE";
 
@@ -69,8 +76,12 @@ public class Employee {
     public void setBankAccountNo(String bankAccountNo) { this.bankAccountNo = bankAccountNo; }
     public String getPanNumber() { return panNumber; }
     public void setPanNumber(String panNumber) { this.panNumber = panNumber; }
+    public String getAadhaarNumber() { return aadhaarNumber; }
+    public void setAadhaarNumber(String aadhaarNumber) { this.aadhaarNumber = aadhaarNumber; }
     public String getPfNumber() { return pfNumber; }
     public void setPfNumber(String pfNumber) { this.pfNumber = pfNumber; }
+    public User getHrManager() { return hrManager; }
+    public void setHrManager(User hrManager) { this.hrManager = hrManager; }
     public String getStatus() { return status; }
     public void setStatus(String status) { this.status = status; }
     public LocalDateTime getCreatedAt() { return createdAt; }

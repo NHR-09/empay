@@ -10,4 +10,6 @@ import java.util.UUID;
 public interface EmployeeRepository extends JpaRepository<Employee, UUID> {
     Optional<Employee> findByUser(User user);
     List<Employee> findByOrganizationId(UUID orgId);
+    Optional<Employee> findByEmployeeCode(String employeeCode);
+    List<Employee> findByHrManager(User hrManager);
 }

@@ -55,7 +55,7 @@ public class PayrollController {
 
         User generator = generatorOpt.get();
         String role = generator.getRole().getRoleName();
-        if (!List.of("ADMIN", "PAYROLL_OFFICER").contains(role)) {
+        if (!java.util.List.of("ADMIN", "PAYROLL_OFFICER", "HR_OFFICER").contains(role)) {
             return ResponseEntity.status(403).body(Map.of("message", "Access denied."));
         }
 
@@ -127,13 +127,30 @@ public class PayrollController {
         if (userOpt.isEmpty()) return ResponseEntity.badRequest().body(Map.of("message", "User not found."));
 
         String role = userOpt.get().getRole().getRoleName();
-        if (!List.of("ADMIN", "PAYROLL_OFFICER").contains(role)) {
+        if (!List.of("ADMIN", "PAYROLL_OFFICER", "HR_OFFICER").contains(role)) {
             return ResponseEntity.status(403).body(Map.of("message", "Access denied."));
         }
 
-        List<Map<String, Object>> list = payrollRepository.findByOrganizationAndPayMonthAndPayYear(
-                userOpt.get().getOrganization(), month, year)
-            .stream().map(this::toMap).collect(Collectors.toList());
+        UUID orgId = userOpt.get().getOrganization().getId();
+        List<Map<String, Object>> list;
+        if (month == 0) {
+            list = payrollRepository.findByOrgAndYear(orgId, year)
+                .stream().map(this::toMap).collect(Collectors.toList());
+        } else {
+            list = payrollRepository.findByOrganizationAndPayMonthAndPayYear(
+                    userOpt.get().getOrganization(), month, year)
+                .stream().map(this::toMap).collect(Collectors.toList());
+        }
+        // HR officers only see their team's payroll
+        if ("HR_OFFICER".equals(role)) {
+            User hr = userOpt.get();
+            list = list.stream().filter(m -> {
+                String empCode = (String) m.get("employeeCode");
+                return employeeRepository.findByEmployeeCode(empCode)
+                    .map(emp -> emp.getHrManager() != null && emp.getHrManager().getId().equals(hr.getId()))
+                    .orElse(false);
+            }).collect(Collectors.toList());
+        }
         return ResponseEntity.ok(list);
     }
 
@@ -153,6 +170,49 @@ public class PayrollController {
                 "Your salary for " + p.getPayMonth() + "/" + p.getPayYear() + " has been marked as PAID.", "PAYROLL");
         }
         return ResponseEntity.ok(Map.of("message", "Payroll status updated."));
+    }
+
+    @GetMapping("/{id}/txt")
+    public ResponseEntity<byte[]> downloadPayslipTxt(@PathVariable UUID id) {
+        Optional<Payroll> pOpt = payrollRepository.findById(id);
+        if (pOpt.isEmpty()) return ResponseEntity.notFound().build();
+        Payroll p = pOpt.get();
+        Employee emp = p.getEmployee();
+        User u = emp.getUser();
+        String[] monthNames = {"","January","February","March","April","May","June",
+            "July","August","September","October","November","December"};
+        String txt = String.format(
+            "EmPay HRMS - Payslip\n" +
+            "====================\n" +
+            "Employee : %s %s\n" +
+            "Code     : %s\n" +
+            "Period   : %s %d\n" +
+            "--------------------\n" +
+            "EARNINGS\n" +
+            "Basic Salary     : %s\n" +
+            "HRA (40%%)        : %s\n" +
+            "Bonus (10%%)      : %s\n" +
+            "Gross Salary     : %s\n" +
+            "--------------------\n" +
+            "DEDUCTIONS\n" +
+            "PF (12%%)         : %s\n" +
+            "Professional Tax : %s\n" +
+            "Total Deductions : %s\n" +
+            "====================\n" +
+            "NET PAY          : %s\n" +
+            "Status           : %s\n",
+            u.getFirstName(), u.getLastName(),
+            emp.getEmployeeCode(),
+            monthNames[p.getPayMonth()], p.getPayYear(),
+            p.getBasicSalary(), p.getHra(), p.getBonus(), p.getGrossSalary(),
+            p.getPfDeduction(), p.getProfessionalTax(), p.getTotalDeductions(),
+            p.getNetSalary(), p.getPayrollStatus()
+        );
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.TEXT_PLAIN);
+        headers.setContentDisposition(ContentDisposition.attachment()
+            .filename("payslip_" + emp.getEmployeeCode() + "_" + p.getPayMonth() + "_" + p.getPayYear() + ".txt").build());
+        return new ResponseEntity<>(txt.getBytes(), headers, HttpStatus.OK);
     }
 
     @GetMapping("/{id}/pdf")
