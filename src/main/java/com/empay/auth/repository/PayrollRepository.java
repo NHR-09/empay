@@ -19,5 +19,10 @@ public interface PayrollRepository extends JpaRepository<Payroll, UUID> {
 
     @Query("SELECT p FROM Payroll p WHERE p.organization.id = :orgId AND p.payYear = :year ORDER BY p.payMonth DESC, p.generatedAt DESC")
     List<Payroll> findByOrgAndYear(@Param("orgId") UUID orgId, @Param("year") int year);
+    
+    long countByOrganizationIdAndPayMonthAndPayYear(UUID orgId, int month, int year);
+    
+    @Query("SELECT COUNT(p), SUM(p.grossSalary), SUM(p.totalDeductions), SUM(p.netSalary) FROM Payroll p WHERE p.organization.id = :orgId AND p.payMonth = :month AND p.payYear = :year")
+    List<Object[]> findMonthlySummary(@Param("orgId") UUID orgId, @Param("month") int month, @Param("year") int year);
 }
 

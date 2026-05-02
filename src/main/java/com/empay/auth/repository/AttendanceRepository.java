@@ -22,4 +22,9 @@ public interface AttendanceRepository extends JpaRepository<Attendance, UUID> {
 
     @Query("SELECT COUNT(a) FROM Attendance a WHERE a.employee = :emp AND MONTH(a.attendanceDate) = :month AND YEAR(a.attendanceDate) = :year AND a.status = 'PRESENT'")
     long countPresentDays(@Param("emp") Employee emp, @Param("month") int month, @Param("year") int year);
+    
+    long countByOrganizationIdAndAttendanceDate(UUID orgId, LocalDate date);
+    
+    @Query("SELECT a FROM Attendance a WHERE a.employee.id = :empId AND MONTH(a.attendanceDate) = :month AND YEAR(a.attendanceDate) = :year")
+    List<Attendance> findByEmployeeIdAndMonthYear(@Param("empId") UUID empId, @Param("month") int month, @Param("year") int year);
 }

@@ -409,7 +409,7 @@
       <!-- Profile Section -->
       <section id="sec-profile" class="section d-none">
         <div class="row">
-          <div class="col-lg-4 mb-4">
+          <div class="col-lg-3 mb-4">
             <div class="card border-0 shadow-sm">
               <div class="card-body text-center">
                 <div class="d-flex justify-content-center mb-3">
@@ -417,9 +417,9 @@
                     <span id="profileInitials">SA</span>
                   </div>
                 </div>
-                <h4 class="fw-bold mb-1" id="profileName">—</h4>
+                <h5 class="fw-bold mb-1" id="profileName">—</h5>
                 <div class="text-primary small fw-semibold mb-3" id="profileRole">—</div>
-                <div class="text-start">
+                <div class="text-start small">
                   <div class="info-divider">
                     <div class="info-label">Email</div>
                     <div class="info-value" id="profileEmail">—</div>
@@ -428,23 +428,39 @@
                     <div class="info-label">Mobile</div>
                     <div class="info-value" id="profileMobile">—</div>
                   </div>
-                  <div class="info-divider">
-                    <div class="info-label">Department</div>
-                    <div class="info-value" id="profileDepartment">—</div>
-                  </div>
-                  <div class="info-divider">
-                    <div class="info-label">Manager</div>
-                    <div class="info-value" id="profileManager">—</div>
-                  </div>
                 </div>
               </div>
             </div>
           </div>
-          <div class="col-lg-8">
-            <div class="card border-0 shadow-sm">
+          <div class="col-lg-9">
+            <ul class="nav nav-tabs mb-3">
+              <li class="nav-item"><button class="nav-link active" onclick="switchProfileTab('resume')">Resume</button></li>
+              <li class="nav-item"><button class="nav-link" onclick="switchProfileTab('private')">Private Info</button></li>
+              <li class="nav-item"><button class="nav-link" onclick="switchProfileTab('salary')">Salary Info</button></li>
+              <li class="nav-item"><button class="nav-link" onclick="switchProfileTab('security')">Security</button></li>
+              <li class="nav-item"><button class="nav-link" onclick="switchProfileTab('skills')">Skills</button></li>
+              <li class="nav-item"><button class="nav-link" onclick="switchProfileTab('certifications')">Certifications</button></li>
+            </ul>
+            
+            <!-- Resume Tab -->
+            <div id="profileResume" class="card border-0 shadow-sm">
               <div class="card-body">
-                <h5 class="card-title fw-semibold mb-3">Personal Information</h5>
-                <div id="profileAlert" class="alert d-none py-2 small"></div>
+                <h5 class="card-title fw-semibold mb-3">Resume / Documents</h5>
+                <div id="resumeAlert" class="alert d-none py-2 small"></div>
+                <div class="mb-3">
+                  <input type="text" id="docName" class="form-control mb-2" placeholder="Document Name">
+                  <input type="text" id="docUrl" class="form-control mb-2" placeholder="Document URL">
+                  <button class="btn btn-sm btn-primary" onclick="addDocument()">Add Document</button>
+                </div>
+                <div id="documentsList"></div>
+              </div>
+            </div>
+
+            <!-- Private Info Tab -->
+            <div id="profilePrivate" class="card border-0 shadow-sm d-none">
+              <div class="card-body">
+                <h5 class="card-title fw-semibold mb-3">Private Information</h5>
+                <div id="privateAlert" class="alert d-none py-2 small"></div>
                 <div class="row g-3">
                   <div class="col-md-6">
                     <label class="form-label small fw-semibold text-muted text-uppercase">First Name</label>
@@ -463,12 +479,32 @@
                     <input type="text" id="profPhone" class="form-control">
                   </div>
                   <div class="col-md-6">
-                    <label class="form-label small fw-semibold text-muted text-uppercase">Designation</label>
-                    <input type="text" id="profDesignation" class="form-control">
+                    <label class="form-label small fw-semibold text-muted text-uppercase">Aadhaar Number</label>
+                    <input type="text" id="profAadhaar" class="form-control">
                   </div>
+                  <div class="col-md-6">
+                    <label class="form-label small fw-semibold text-muted text-uppercase">PAN Number</label>
+                    <input type="text" id="profPanNumber" class="form-control">
+                  </div>
+                  <div class="col-12">
+                    <button class="btn btn-primary" onclick="savePrivateInfo()">Save Changes</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Salary Info Tab -->
+            <div id="profileSalary" class="card border-0 shadow-sm d-none">
+              <div class="card-body">
+                <h5 class="card-title fw-semibold mb-3">Salary Information</h5>
+                <div class="row g-3">
                   <div class="col-md-6">
                     <label class="form-label small fw-semibold text-muted text-uppercase">Employee Code</label>
                     <input type="text" id="profEmpCode" class="form-control" readonly>
+                  </div>
+                  <div class="col-md-6">
+                    <label class="form-label small fw-semibold text-muted text-uppercase">Designation</label>
+                    <input type="text" id="profDesignation" class="form-control" readonly>
                   </div>
                   <div class="col-md-6">
                     <label class="form-label small fw-semibold text-muted text-uppercase">Joining Date</label>
@@ -480,24 +516,87 @@
                   </div>
                   <div class="col-md-6">
                     <label class="form-label small fw-semibold text-muted text-uppercase">Bank Account No</label>
-                    <input type="text" id="profBankAccount" class="form-control">
+                    <input type="text" id="profBankAccount" class="form-control" readonly>
                   </div>
                   <div class="col-md-6">
-                    <label class="form-label small fw-semibold text-muted text-uppercase">PAN Number</label>
-                    <input type="text" id="profPanNumber" class="form-control">
-                  </div>
-                  <div class="col-md-6">
-                    <label class="form-label small fw-semibold text-muted text-uppercase">Aadhaar Number</label>
-                    <input type="text" id="profAadhaar" class="form-control">
+                    <label class="form-label small fw-semibold text-muted text-uppercase">PF Number</label>
+                    <input type="text" id="profPfNumber" class="form-control" readonly>
                   </div>
                   <div class="col-md-6">
                     <label class="form-label small fw-semibold text-muted text-uppercase">HR Manager</label>
                     <input type="text" id="profHrManager" class="form-control" readonly>
                   </div>
-                  <div class="col-12">
-                    <button class="btn btn-primary" onclick="saveProfile()">Save Changes</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Security Tab -->
+            <div id="profileSecurity" class="card border-0 shadow-sm d-none">
+              <div class="card-body">
+                <h5 class="card-title fw-semibold mb-3">Security Settings</h5>
+                <div class="mb-3">
+                  <button class="btn btn-outline-primary" onclick="window.location.href='/change-password.html'">Change Password</button>
+                </div>
+                <hr>
+                <h6 class="fw-semibold mb-3">Two-Factor Authentication</h6>
+                <div class="form-check form-switch mb-2">
+                  <input class="form-check-input" type="checkbox" id="enable2FA">
+                  <label class="form-check-label" for="enable2FA">Enable 2FA</label>
+                </div>
+              </div>
+            </div>
+
+            <!-- Skills Tab -->
+            <div id="profileSkills" class="card border-0 shadow-sm d-none">
+              <div class="card-body">
+                <h5 class="card-title fw-semibold mb-3">Skills</h5>
+                <div id="skillsAlert" class="alert d-none py-2 small"></div>
+                <div class="row g-2 mb-3">
+                  <div class="col-md-4">
+                    <input type="text" id="skillName" class="form-control" placeholder="Skill Name">
+                  </div>
+                  <div class="col-md-3">
+                    <select id="skillLevel" class="form-select">
+                      <option value="Beginner">Beginner</option>
+                      <option value="Intermediate">Intermediate</option>
+                      <option value="Advanced">Advanced</option>
+                      <option value="Expert">Expert</option>
+                    </select>
+                  </div>
+                  <div class="col-md-3">
+                    <input type="number" id="skillYears" class="form-control" placeholder="Years">
+                  </div>
+                  <div class="col-md-2">
+                    <button class="btn btn-primary w-100" onclick="addSkill()">Add</button>
                   </div>
                 </div>
+                <div id="skillsList"></div>
+              </div>
+            </div>
+
+            <!-- Certifications Tab -->
+            <div id="profileCertifications" class="card border-0 shadow-sm d-none">
+              <div class="card-body">
+                <h5 class="card-title fw-semibold mb-3">Certifications</h5>
+                <div id="certAlert" class="alert d-none py-2 small"></div>
+                <div class="row g-2 mb-3">
+                  <div class="col-md-6">
+                    <input type="text" id="certName" class="form-control" placeholder="Certification Name">
+                  </div>
+                  <div class="col-md-6">
+                    <input type="text" id="certOrg" class="form-control" placeholder="Issuing Organization">
+                  </div>
+                  <div class="col-md-6">
+                    <input type="text" id="certId" class="form-control" placeholder="Credential ID">
+                  </div>
+                  <div class="col-md-4">
+                    <input type="text" id="certUrl" class="form-control" placeholder="Credential URL">
+                  </div>
+                  <div class="col-md-2">
+                    <button class="btn btn-primary w-100" onclick="addCertification()">Add</button>
+                  </div>
+                </div>
+                <div id="certificationsList"></div>
               </div>
             </div>
           </div>
@@ -545,5 +644,6 @@
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script src="dashboard.js"></script>
+<script src="profile-tabs.js"></script>
 </body>
 </html>
