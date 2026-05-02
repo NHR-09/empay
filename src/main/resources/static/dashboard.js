@@ -17,6 +17,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initDateFilters();
   showSection('home');
   loadHome();
+  loadNotifications();
 });
 
 /* ─── DYNAMIC DATE FILTERS ───────────────────────────── */
@@ -51,9 +52,13 @@ function initUser() {
   document.getElementById('sidebarName').textContent = user.firstName + ' ' + user.lastName;
   document.getElementById('sidebarRole').textContent = ROLE.replace('_', ' ');
 
-  // Hide nav items based on role
+  // Hide nav items and admin-only tabs based on role
   if (IS_EMPLOYEE) {
     document.getElementById('navReports').style.display = 'none';
+    document.getElementById('navAuditLogs').style.display = 'none';
+    // Hide Add Employee tab for employees
+    const addTab = document.getElementById('btnAddEmpTab');
+    if (addTab) addTab.style.display = 'none';
   }
 }
 
@@ -74,7 +79,7 @@ function initSidebar() {
 function showSection(sec) {
   document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
   document.getElementById('sec-' + sec)?.classList.add('active');
-  const titles = { home:'Home', employees:'Employees', attendance:'Attendance', timeoff:'Time Off', payroll:'Payroll', reports:'Reports', profile:'Profile' };
+  const titles = { home:'Home', employees:'Employees', attendance:'Attendance', timeoff:'Time Off', payroll:'Payroll', reports:'Reports', profile:'Profile', auditlogs:'Audit Logs' };
   document.getElementById('topTitle').textContent = titles[sec] || sec;
 }
 
@@ -86,6 +91,7 @@ function loadSection(sec) {
   if (sec === 'payroll')    loadPayroll();
   if (sec === 'reports')    loadReports();
   if (sec === 'profile')    loadProfile();
+  if (sec === 'auditlogs')  loadAuditLogs();
 }
 
 /* ─── UTILS ──────────────────────────────────────────── */
@@ -124,6 +130,8 @@ function fmtTime(dt) {
 
 /* ─── HOME / REPORTS ──────────────────────────────────── */
 async function loadHome() {
+  // Auto-cleanup invalid users on first load
+  try { await fetch('/api/admin/cleanup', { method:'POST' }); } catch {}
   try {
     const [statsRes, attRes, leavesRes] = await Promise.all([
       fetch(`/api/admin/stats?email=${encodeURIComponent(user.email)}`),
@@ -159,27 +167,54 @@ async function loadReports() {
 let allEmployees = [];
 
 async function loadEmployees() {
-  if (!CAN_MANAGE && !IS_ADMIN) {
-    document.getElementById('btnAddEmployee').style.display = 'none';
-  }
   try {
-    const res = await fetch('/api/admin/users');
-    allEmployees = res.ok ? await res.json() : [];
+    if (CAN_MANAGE || IS_ADMIN) {
+      // Admin/HR see full user list from admin API
+      const res = await fetch('/api/admin/users');
+      allEmployees = res.ok ? await res.json() : [];
+    } else {
+      // Regular employees see employee list (read-only)
+      const res = await fetch(`/api/employees?email=${encodeURIComponent(user.email)}`);
+      const empList = res.ok ? await res.json() : [];
+      allEmployees = empList.map(e => ({
+        loginId: e.employeeCode || '',
+        firstName: e.firstName || '',
+        lastName: e.lastName || '',
+        email: e.email || '',
+        designation: e.designation || '',
+        employmentType: e.employmentType || '',
+        role: '',
+        status: e.status || 'ACTIVE'
+      }));
+    }
   } catch { allEmployees = []; }
   renderEmployeeTable(allEmployees);
 }
 
 function renderEmployeeTable(list) {
   const tbody = document.getElementById('empBody');
-  if (!list.length) { tbody.innerHTML = emptyRow(6, 'No employees found.'); return; }
+  const thead = document.getElementById('empHead');
+  const isManager = CAN_MANAGE || IS_ADMIN;
+
+  // Dynamic header based on role
+  if (thead) {
+    thead.innerHTML = `<tr><th>Login ID</th><th>Name</th><th>Email</th><th>${isManager ? 'Role' : 'Designation'}</th><th>Status</th>${isManager ? '<th>Actions</th>' : ''}</tr>`;
+  }
+
+  if (!list.length) { tbody.innerHTML = emptyRow(isManager ? 6 : 5, 'No employees found.'); return; }
   tbody.innerHTML = list.map((e, i) => `
     <tr>
       <td><span style="font-family:monospace;font-size:12px;color:var(--accent2)">${e.loginId||'—'}</span></td>
       <td><b>${e.firstName} ${e.lastName}</b></td>
       <td style="color:var(--muted)">${e.email}</td>
-      <td>${e.role?.replace('_',' ')}</td>
+      <td>${e.role ? e.role.replace('_',' ') : (e.designation || '—')}</td>
       <td>${badge(e.status)}</td>
-      <td>${CAN_MANAGE ? `<button class="btn btn-ghost btn-sm" onclick="removeEmployee('${e.loginId}')">Remove</button>` : ''}</td>
+      ${isManager ? `<td>
+          <button class="btn btn-ghost btn-sm" onclick="toggleUserStatus('${e.loginId}','${e.status}')">
+            ${e.status==='ACTIVE' ? 'Deactivate' : 'Activate'}
+          </button>
+          <button class="btn btn-danger btn-sm" onclick="removeEmployee('${e.loginId}')" style="margin-left:4px">Remove</button>
+      </td>` : ''}
     </tr>`).join('');
 }
 
@@ -219,6 +254,18 @@ async function submitAddEmployee() {
 async function removeEmployee(loginId) {
   if (!confirm(`Remove user ${loginId}? This cannot be undone.`)) return;
   const res = await fetch(`/api/admin/users/${loginId}`, { method:'DELETE' });
+  const data = await res.json();
+  if (res.ok) loadEmployees();
+  else alert(data.message);
+}
+
+async function toggleUserStatus(loginId, currentStatus) {
+  const newStatus = currentStatus === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';
+  const res = await fetch(`/api/admin/users/${loginId}/status`, {
+    method: 'PATCH',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ status: newStatus })
+  });
   const data = await res.json();
   if (res.ok) loadEmployees();
   else alert(data.message);
@@ -335,6 +382,7 @@ async function loadAllAttendance() {
 
 /* ─── TIME OFF / LEAVE ────────────────────────────────── */
 function loadTimeOff() {
+  loadLeaveBalance();
   switchLeaveTab('my');
 }
 
@@ -416,6 +464,11 @@ async function updateLeave(id, status) {
 
 /* ─── PAYROLL ─────────────────────────────────────────── */
 function loadPayroll() {
+  // Hide generate & all tabs for employees
+  if (IS_EMPLOYEE) {
+    document.getElementById('payrollTab-generate').style.display = 'none';
+    document.getElementById('payrollTab-all').style.display = 'none';
+  }
   switchPayrollTab('my');
 }
 
@@ -425,38 +478,72 @@ function switchPayrollTab(tab) {
   document.getElementById('payrollMy').style.display       = tab==='my'       ? 'block':'none';
   document.getElementById('payrollGenerate').style.display = tab==='generate' ? 'block':'none';
   document.getElementById('payrollAll').style.display      = tab==='all'      ? 'block':'none';
-  if (tab==='my')  loadMyPayroll();
-  if (tab==='all') loadAllPayroll();
+  if (tab==='my')       loadMyPayroll();
+  if (tab==='all')      loadAllPayroll();
+  if (tab==='generate') populateEmployeeDropdown();
+}
+
+function renderPayslipCard(p) {
+  const presentLabel = (p.presentDays === 0 && p.leavesTaken === 0) ? 'Full Month (no tracking)' : `${p.presentDays} days worked, ${p.leavesTaken} leaves`;
+  return `
+    <div class="payslip-card">
+      <div class="payslip-header">
+        <div>
+          <div class="payslip-period">${p.employeeName || (user.firstName + ' ' + user.lastName)}</div>
+          <div style="font-size:12px;color:var(--muted);margin-top:2px">${p.employeeCode || ''} · ${monthName(p.payMonth)} ${p.payYear}</div>
+        </div>
+        <div style="text-align:right">
+          <div class="payslip-net">${moneyINR(p.netSalary)}</div>
+          <div style="margin-top:4px">${badge(p.status)}</div>
+        </div>
+      </div>
+      <div class="payslip-details">
+        <div class="payslip-info-row"><span>Pay Period</span><span>${monthName(p.payMonth)} ${p.payYear}</span></div>
+        <div class="payslip-info-row"><span>Working Days</span><span>${p.totalWorkingDays}</span></div>
+        <div class="payslip-info-row"><span>Attendance</span><span>${presentLabel}</span></div>
+      </div>
+      <div class="payslip-grid">
+        <div>
+          <div class="payslip-section-title">Earnings</div>
+          <div class="payslip-row"><span>Basic Salary</span><span>${moneyINR(p.basicSalary)}</span></div>
+          <div class="payslip-row"><span>HRA (40%)</span><span>${moneyINR(p.hra)}</span></div>
+          <div class="payslip-row"><span>Performance Bonus</span><span>${moneyINR(p.bonus)}</span></div>
+          <div class="payslip-row total"><span>Gross Salary</span><span>${moneyINR(p.grossSalary)}</span></div>
+        </div>
+        <div>
+          <div class="payslip-section-title">Deductions</div>
+          <div class="payslip-row deduction"><span>Provident Fund (12%)</span><span>- ${moneyINR(p.pfDeduction)}</span></div>
+          <div class="payslip-row deduction"><span>Professional Tax</span><span>- ${moneyINR(p.professionalTax)}</span></div>
+          <div class="payslip-row deduction total"><span>Total Deductions</span><span>- ${moneyINR(p.totalDeductions)}</span></div>
+        </div>
+      </div>
+      <div class="payslip-footer">
+        <span>Net Pay</span>
+        <div style="display:flex;align-items:center;gap:12px">
+          <button class="btn btn-ghost btn-sm" onclick="downloadPayslipPdf('${p.id}')">⬇ Download PDF</button>
+          <span class="payslip-net-big">${moneyINR(p.netSalary)}</span>
+        </div>
+      </div>
+    </div>`;
 }
 
 async function loadMyPayroll() {
   const res = await fetch(`/api/payroll/my?email=${encodeURIComponent(user.email)}`);
   const list = res.ok ? await res.json() : [];
   const container = document.getElementById('myPayrollList');
-  if (!list.length) { container.innerHTML = '<p style="color:var(--muted);text-align:center;padding:40px">No payslips yet.</p>'; return; }
-  container.innerHTML = list.map(p => `
-    <div class="payslip-card">
-      <div class="payslip-header">
-        <div>
-          <div class="payslip-period">${monthName(p.payMonth)} ${p.payYear}</div>
-          <div style="font-size:11px;color:var(--muted);margin-top:2px">${p.presentDays} days worked · ${badge(p.status)}</div>
-        </div>
-        <div class="payslip-net">${moneyINR(p.netSalary)}</div>
-      </div>
-      <div class="payslip-grid">
-        <div>
-          <div class="payslip-row"><span>Basic</span><span>${moneyINR(p.basicSalary)}</span></div>
-          <div class="payslip-row"><span>HRA</span><span>${moneyINR(p.hra)}</span></div>
-          <div class="payslip-row"><span>Bonus</span><span>${moneyINR(p.bonus)}</span></div>
-          <div class="payslip-row total"><span>Gross</span><span>${moneyINR(p.grossSalary)}</span></div>
-        </div>
-        <div>
-          <div class="payslip-row deduction"><span>PF (12%)</span><span>-${moneyINR(p.pfDeduction)}</span></div>
-          <div class="payslip-row deduction"><span>Prof. Tax</span><span>-${moneyINR(p.professionalTax)}</span></div>
-          <div class="payslip-row deduction total"><span>Deductions</span><span>-${moneyINR(p.totalDeductions)}</span></div>
-        </div>
-      </div>
-    </div>`).join('');
+  if (!list.length) { container.innerHTML = '<p style="color:var(--muted);text-align:center;padding:40px">No payslips generated yet.</p>'; return; }
+  container.innerHTML = list.map(p => renderPayslipCard(p)).join('');
+}
+
+async function populateEmployeeDropdown() {
+  const sel = document.getElementById('genEmpEmail');
+  if (!sel) return;
+  try {
+    const res = await fetch('/api/admin/users');
+    const users = res.ok ? await res.json() : [];
+    sel.innerHTML = '<option value="">— Select Employee —</option>' +
+      users.filter(u => u.status === 'ACTIVE').map(u => `<option value="${u.email}">${u.firstName} ${u.lastName} (${u.email})</option>`).join('');
+  } catch {}
 }
 
 async function submitGeneratePayroll() {
@@ -466,13 +553,13 @@ async function submitGeneratePayroll() {
     month: parseInt(document.getElementById('genMonth').value),
     year:  parseInt(document.getElementById('genYear').value)
   };
-  if (!payload.employeeEmail) { showAlert('genAlert','Employee email is required.'); return; }
+  if (!payload.employeeEmail) { showAlert('genAlert','Please select an employee.'); return; }
   try {
     const res = await fetch('/api/payroll/generate', {
       method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)
     });
     const data = await res.json();
-    showAlert('genAlert', res.ok ? `✓ Payroll generated. Net: ${moneyINR(data.netSalary)}` : data.message, res.ok?'success':'error');
+    showAlert('genAlert', res.ok ? `✓ Payroll generated for ${data.employeeName}. Net: ${moneyINR(data.netSalary)}` : data.message, res.ok?'success':'error');
     if (res.ok) loadAllPayroll();
   } catch { showAlert('genAlert','Network error.'); }
 }
@@ -483,19 +570,31 @@ async function loadAllPayroll() {
   const res = await fetch(`/api/payroll/all?email=${encodeURIComponent(user.email)}&month=${m}&year=${y}`);
   const list = res.ok ? await res.json() : [];
   const tbody = document.getElementById('allPayrollBody');
-  tbody.innerHTML = list.length ? list.map(p => `
+  tbody.innerHTML = list.length ? list.map(p => {
+    const presentLabel = (p.presentDays === 0 && p.leavesTaken === 0) ? 'Full' : `${p.presentDays}/${p.totalWorkingDays}`;
+    return `
     <tr>
       <td><b>${p.employeeName}</b><br><span style="color:var(--muted);font-size:11px">${p.employeeCode}</span></td>
       <td>${monthName(p.payMonth)} ${p.payYear}</td>
-      <td>${p.presentDays}/${p.totalWorkingDays}</td>
+      <td>${presentLabel}</td>
       <td>${moneyINR(p.grossSalary)}</td>
-      <td style="color:var(--danger)">-${moneyINR(p.totalDeductions)}</td>
+      <td style="color:var(--danger)">- ${moneyINR(p.totalDeductions)}</td>
       <td style="color:var(--success);font-weight:600">${moneyINR(p.netSalary)}</td>
       <td>${badge(p.status)}</td>
       <td>
-        ${p.status==='GENERATED' ? `<button class="btn btn-success btn-sm" onclick="markPaid('${p.id}')">Mark Paid</button>` : ''}
+        <button class="btn btn-ghost btn-sm" onclick="viewPayslip('${p.id}')">View</button>
+        ${p.status==='GENERATED' ? `<button class="btn btn-success btn-sm" onclick="markPaid('${p.id}')" style="margin-left:4px">Mark Paid</button>` : ''}
       </td>
-    </tr>`).join('') : emptyRow(8);
+    </tr>
+    <tr id="slip-${p.id}" style="display:none">
+      <td colspan="8" style="padding:0">${renderPayslipCard(p)}</td>
+    </tr>`;
+  }).join('') : emptyRow(8);
+}
+
+function viewPayslip(id) {
+  const row = document.getElementById('slip-' + id);
+  if (row) row.style.display = row.style.display === 'none' ? 'table-row' : 'none';
 }
 
 async function markPaid(id) {
@@ -538,7 +637,6 @@ async function saveProfile() {
     bankAccountNo: document.getElementById('profBank').value.trim(),
     panNumber:   document.getElementById('profPAN').value.trim()
   };
-  // Only allow salary edit for admin/payroll
   if (CAN_PAYROLL) payload.basicSalary = document.getElementById('profSalary').value;
   try {
     const res = await fetch('/api/employees/profile', {
@@ -550,5 +648,174 @@ async function saveProfile() {
   } catch { showAlert('profAlert','Network error.'); }
 }
 
+/* ─── NOTIFICATIONS ──────────────────────────────────── */
+async function loadNotifications() {
+  try {
+    const res = await fetch(`/api/notifications?email=${encodeURIComponent(user.email)}`);
+    if (!res.ok) return;
+    const data = await res.json();
+    const badge = document.getElementById('notifCount');
+    if (data.unread > 0) {
+      badge.textContent = data.unread;
+      badge.style.display = 'flex';
+    } else {
+      badge.style.display = 'none';
+    }
+    const list = document.getElementById('notifList');
+    if (!data.items || !data.items.length) {
+      list.innerHTML = '<div style="padding:16px;text-align:center;color:var(--muted);font-size:12px">No notifications</div>';
+      return;
+    }
+    list.innerHTML = data.items.slice(0, 20).map(n => `
+      <div class="notif-item ${n.read ? '' : 'unread'}" onclick="markNotifRead('${n.id}')">
+        <div class="notif-type-badge notif-${(n.type||'system').toLowerCase()}">${n.type || 'SYSTEM'}</div>
+        <div class="notif-msg">${n.message}</div>
+        <div class="notif-time">${new Date(n.createdAt).toLocaleString()}</div>
+      </div>
+    `).join('');
+  } catch {}
+}
+
+function toggleNotifDropdown() {
+  const dd = document.getElementById('notifDropdown');
+  dd.style.display = dd.style.display === 'none' ? 'block' : 'none';
+  if (dd.style.display === 'block') loadNotifications();
+}
+
+async function markNotifRead(id) {
+  await fetch(`/api/notifications/${id}/read`, { method: 'PATCH' });
+  loadNotifications();
+}
+
+async function markAllNotifRead() {
+  await fetch('/api/notifications/read-all', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ email: user.email })
+  });
+  loadNotifications();
+}
+
+// Close dropdown on outside click
+document.addEventListener('click', e => {
+  const wrap = document.getElementById('notifWrap');
+  if (wrap && !wrap.contains(e.target)) {
+    document.getElementById('notifDropdown').style.display = 'none';
+  }
+});
+
+/* ─── LEAVE BALANCE ──────────────────────────────────── */
+async function loadLeaveBalance() {
+  try {
+    const res = await fetch(`/api/leaves/balance?email=${encodeURIComponent(user.email)}`);
+    if (!res.ok) return;
+    const balances = await res.json();
+    const grid = document.getElementById('leaveBalanceGrid');
+    if (!grid) return;
+    const colors = { CASUAL: '#6c63ff', SICK: '#ef4444', EARNED: '#22c55e' };
+    grid.innerHTML = balances.map(b => `
+      <div class="stat-card" style="--card-accent:${colors[b.leaveType] || '#f59e0b'}">
+        <div class="stat-label">${b.leaveType} Leave</div>
+        <div class="stat-value">${b.remainingDays}<span style="font-size:14px;color:var(--muted)">/${b.totalDays}</span></div>
+        <div class="stat-sub">${b.usedDays} used</div>
+      </div>
+    `).join('');
+  } catch {}
+}
+
+/* ─── REPORTS (Charts) ───────────────────────────────── */
+let chartPayrollInstance = null;
+let chartLeaveInstance = null;
+
+async function loadReports() {
+  try {
+    const statsRes = await fetch(`/api/admin/stats?email=${encodeURIComponent(user.email)}`);
+    if (statsRes.ok) {
+      const stats = await statsRes.json();
+      document.getElementById('rptTotal').textContent = stats.totalEmployees ?? '—';
+      document.getElementById('rptActive').textContent = stats.activeEmployees ?? '—';
+    }
+  } catch {}
+
+  // Payroll chart
+  try {
+    const now = new Date();
+    const payrollData = [];
+    const payrollLabels = [];
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const m = d.getMonth() + 1;
+      const y = d.getFullYear();
+      payrollLabels.push(monthName(m) + ' ' + y);
+      try {
+        const res = await fetch(`/api/payroll/all?email=${encodeURIComponent(user.email)}&month=${m}&year=${y}`);
+        const list = res.ok ? await res.json() : [];
+        const total = list.reduce((s, p) => s + (parseFloat(p.netSalary) || 0), 0);
+        payrollData.push(total);
+      } catch { payrollData.push(0); }
+    }
+
+    if (chartPayrollInstance) chartPayrollInstance.destroy();
+    const ctx1 = document.getElementById('chartPayroll');
+    if (ctx1) {
+      chartPayrollInstance = new Chart(ctx1.getContext('2d'), {
+        type: 'bar',
+        data: {
+          labels: payrollLabels,
+          datasets: [{ label: 'Total Net Pay (₹)', data: payrollData,
+            backgroundColor: 'rgba(108,99,255,0.5)', borderColor: '#6c63ff', borderWidth: 1 }]
+        },
+        options: { responsive: true, plugins: { legend: { labels: { color: '#8892a4' } } },
+          scales: { x: { ticks: { color: '#8892a4' } }, y: { ticks: { color: '#8892a4' } } } }
+      });
+    }
+  } catch {}
+
+  // Leave chart
+  try {
+    const balRes = await fetch(`/api/leaves/balance?email=${encodeURIComponent(user.email)}`);
+    const balances = balRes.ok ? await balRes.json() : [];
+    if (chartLeaveInstance) chartLeaveInstance.destroy();
+    const ctx2 = document.getElementById('chartLeave');
+    if (ctx2 && balances.length) {
+      chartLeaveInstance = new Chart(ctx2.getContext('2d'), {
+        type: 'doughnut',
+        data: {
+          labels: balances.map(b => b.leaveType),
+          datasets: [{ data: balances.map(b => b.usedDays),
+            backgroundColor: ['#6c63ff', '#ef4444', '#22c55e', '#f59e0b'] }]
+        },
+        options: { responsive: true, plugins: { legend: { labels: { color: '#8892a4' } } } }
+      });
+    }
+  } catch {}
+}
+
+/* ─── AUDIT LOGS ─────────────────────────────────────── */
+async function loadAuditLogs() {
+  const module = document.getElementById('auditModule')?.value || '';
+  const url = `/api/audit-logs?email=${encodeURIComponent(user.email)}${module ? '&module=' + module : ''}`;
+  try {
+    const res = await fetch(url);
+    const logs = res.ok ? await res.json() : [];
+    const tbody = document.getElementById('auditBody');
+    if (!tbody) return;
+    tbody.innerHTML = logs.length ? logs.map(l => `
+      <tr>
+        <td style="white-space:nowrap;font-size:11px;color:var(--muted)">${new Date(l.createdAt).toLocaleString()}</td>
+        <td>${l.user}</td>
+        <td><span class="badge badge-${l.action.includes('DELETE') ? 'absent' : l.action.includes('CREATE') ? 'present' : 'pending'}">${l.action}</span></td>
+        <td>${l.module}</td>
+        <td style="font-size:11px">${l.newValue || '—'}</td>
+      </tr>
+    `).join('') : emptyRow(5);
+  } catch {}
+}
+
+/* ─── PAYSLIP PDF DOWNLOAD ───────────────────────────── */
+function downloadPayslipPdf(id) {
+  window.open(`/api/payroll/${id}/pdf`, '_blank');
+}
+
 /* ─── LOGOUT ──────────────────────────────────────────── */
 function logout() { sessionStorage.clear(); window.location.href = '/index.html'; }
+

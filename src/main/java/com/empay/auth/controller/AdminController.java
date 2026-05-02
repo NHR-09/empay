@@ -34,9 +34,18 @@ public class AdminController {
         if (userOpt.isEmpty()) return ResponseEntity.badRequest().body(Map.of("message", "User not found."));
 
         User u = userOpt.get();
-        u.setActive("ACTIVE".equalsIgnoreCase(body.get("status")));
+        String newStatus = body.get("status");
+        boolean isActive = "ACTIVE".equalsIgnoreCase(newStatus);
+        u.setActive(isActive);
         userRepository.save(u);
-        return ResponseEntity.ok(Map.of("message", "Status updated.", "status", body.get("status")));
+
+        // Also sync the Employee record's status field
+        employeeRepository.findByUser(u).ifPresent(emp -> {
+            emp.setStatus(isActive ? "ACTIVE" : "INACTIVE");
+            employeeRepository.save(emp);
+        });
+
+        return ResponseEntity.ok(Map.of("message", "Status updated.", "status", newStatus));
     }
 
     @DeleteMapping("/users/{loginId}")
@@ -71,12 +80,21 @@ public class AdminController {
         List<User> badUsers = userRepository.findAll().stream()
             .filter(u -> u.getLoginId() == null || u.getLoginId().isBlank())
             .collect(Collectors.toList());
-        int count = badUsers.size();
+        int fixed = 0, deleted = 0;
         for (User u : badUsers) {
-            employeeRepository.findByUser(u).ifPresent(employeeRepository::delete);
-            userRepository.delete(u);
+            // Don't delete admins/officers - fix their loginId instead
+            String role = u.getRole() != null ? u.getRole().getRoleName() : "";
+            if (List.of("ADMIN", "HR_OFFICER", "PAYROLL_OFFICER").contains(role)) {
+                u.setLoginId("SYS" + role.substring(0,3) + u.getId().toString().substring(0,8).toUpperCase());
+                userRepository.save(u);
+                fixed++;
+            } else {
+                employeeRepository.findByUser(u).ifPresent(employeeRepository::delete);
+                userRepository.delete(u);
+                deleted++;
+            }
         }
-        return ResponseEntity.ok(Map.of("message", "Cleaned up " + count + " invalid user(s)."));
+        return ResponseEntity.ok(Map.of("message", "Fixed " + fixed + ", deleted " + deleted + " user(s)."));
     }
 
     @PostMapping("/create-user")

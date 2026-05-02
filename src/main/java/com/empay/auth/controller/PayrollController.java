@@ -1,19 +1,19 @@
 package com.empay.auth.controller;
 
-import com.empay.auth.model.Employee;
-import com.empay.auth.model.Payroll;
-import com.empay.auth.model.User;
-import com.empay.auth.repository.AttendanceRepository;
-import com.empay.auth.repository.EmployeeRepository;
-import com.empay.auth.repository.LeaveRequestRepository;
-import com.empay.auth.repository.PayrollRepository;
-import com.empay.auth.repository.UserRepository;
-import org.springframework.http.ResponseEntity;
+import com.empay.auth.model.*;
+import com.empay.auth.repository.*;
+import com.empay.auth.service.AuditService;
+import com.lowagie.text.*;
+import com.lowagie.text.pdf.*;
+import org.springframework.http.*;
 import org.springframework.web.bind.annotation.*;
 
+import java.awt.Color;
+import java.io.ByteArrayOutputStream;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.*;
+import java.util.List;
 import java.util.stream.Collectors;
 
 @RestController
@@ -25,15 +25,22 @@ public class PayrollController {
     private final UserRepository userRepository;
     private final AttendanceRepository attendanceRepository;
     private final LeaveRequestRepository leaveRepository;
+    private final DeductionRepository deductionRepository;
+    private final PayslipRepository payslipRepository;
+    private final AuditService auditService;
 
     public PayrollController(PayrollRepository payrollRepository, EmployeeRepository employeeRepository,
                              UserRepository userRepository, AttendanceRepository attendanceRepository,
-                             LeaveRequestRepository leaveRepository) {
+                             LeaveRequestRepository leaveRepository, DeductionRepository deductionRepository,
+                             PayslipRepository payslipRepository, AuditService auditService) {
         this.payrollRepository = payrollRepository;
         this.employeeRepository = employeeRepository;
         this.userRepository = userRepository;
         this.attendanceRepository = attendanceRepository;
         this.leaveRepository = leaveRepository;
+        this.deductionRepository = deductionRepository;
+        this.payslipRepository = payslipRepository;
+        this.auditService = auditService;
     }
 
     @PostMapping("/generate")
@@ -53,18 +60,51 @@ public class PayrollController {
         }
 
         Optional<User> targetOpt = userRepository.findByEmail(targetEmail);
-        if (targetOpt.isEmpty()) return ResponseEntity.badRequest().body(Map.of("message", "Target employee not found."));
+        if (targetOpt.isEmpty()) return ResponseEntity.badRequest().body(Map.of("message", "Target employee not found. Check the email address."));
 
-        Optional<Employee> empOpt = employeeRepository.findByUser(targetOpt.get());
-        if (empOpt.isEmpty()) return ResponseEntity.badRequest().body(Map.of("message", "Employee record not found."));
+        User targetUser = targetOpt.get();
+        Employee emp = employeeRepository.findByUser(targetUser).orElseGet(() -> {
+            Employee e = new Employee();
+            e.setUser(targetUser);
+            e.setOrganization(targetUser.getOrganization());
+            e.setEmployeeCode(targetUser.getLoginId() != null ? targetUser.getLoginId() : "EMP-" + targetUser.getId().toString().substring(0, 8));
+            e.setJoiningDate(java.time.LocalDate.now());
+            return employeeRepository.save(e);
+        });
 
-        Employee emp = empOpt.get();
         if (payrollRepository.findByEmployeeAndPayMonthAndPayYear(emp, month, year).isPresent()) {
             return ResponseEntity.badRequest().body(Map.of("message", "Payroll already generated for this period."));
         }
 
         Payroll p = calculatePayroll(emp, month, year, generator);
         payrollRepository.save(p);
+
+        // Save individual deduction rows
+        Deduction pfDed = new Deduction();
+        pfDed.setPayroll(p);
+        pfDed.setDeductionType("Provident Fund (12%)");
+        pfDed.setAmount(p.getPfDeduction());
+        pfDed.setDescription("Employee PF contribution at 12% of basic salary");
+        deductionRepository.save(pfDed);
+
+        Deduction ptDed = new Deduction();
+        ptDed.setPayroll(p);
+        ptDed.setDeductionType("Professional Tax");
+        ptDed.setAmount(p.getProfessionalTax());
+        ptDed.setDescription("Monthly professional tax");
+        deductionRepository.save(ptDed);
+
+        // Create payslip record
+        PayslipEntity slip = new PayslipEntity();
+        slip.setPayroll(p);
+        payslipRepository.save(slip);
+
+        // Audit log + notification
+        String monthNames = new String[]{"","Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"}[month];
+        auditService.log(generator, "GENERATE_PAYROLL", "PAYROLL", null,
+            targetUser.getFirstName() + " " + targetUser.getLastName() + " - " + monthNames + " " + year);
+        auditService.notify(targetUser, "Your payslip for " + monthNames + " " + year + " has been generated. Net pay: ₹" + p.getNetSalary(), "PAYROLL");
+
         return ResponseEntity.ok(toMap(p));
     }
 
@@ -86,8 +126,13 @@ public class PayrollController {
         Optional<User> userOpt = userRepository.findByEmail(email);
         if (userOpt.isEmpty()) return ResponseEntity.badRequest().body(Map.of("message", "User not found."));
 
-        List<Map<String, Object>> list = payrollRepository
-            .findByOrgAndMonthYear(userOpt.get().getOrganization().getId(), month, year)
+        String role = userOpt.get().getRole().getRoleName();
+        if (!List.of("ADMIN", "PAYROLL_OFFICER").contains(role)) {
+            return ResponseEntity.status(403).body(Map.of("message", "Access denied."));
+        }
+
+        List<Map<String, Object>> list = payrollRepository.findByOrganizationAndPayMonthAndPayYear(
+                userOpt.get().getOrganization(), month, year)
             .stream().map(this::toMap).collect(Collectors.toList());
         return ResponseEntity.ok(list);
     }
@@ -98,31 +143,162 @@ public class PayrollController {
         if (pOpt.isEmpty()) return ResponseEntity.badRequest().body(Map.of("message", "Payroll not found."));
 
         Payroll p = pOpt.get();
+        String oldStatus = p.getPayrollStatus();
         p.setPayrollStatus(body.get("status"));
         payrollRepository.save(p);
+
+        auditService.log(null, "UPDATE_PAYROLL_STATUS", "PAYROLL", oldStatus, body.get("status"));
+        if ("PAID".equals(body.get("status"))) {
+            auditService.notify(p.getEmployee().getUser(),
+                "Your salary for " + p.getPayMonth() + "/" + p.getPayYear() + " has been marked as PAID.", "PAYROLL");
+        }
         return ResponseEntity.ok(Map.of("message", "Payroll status updated."));
     }
 
+    @GetMapping("/{id}/pdf")
+    public ResponseEntity<byte[]> downloadPayslip(@PathVariable UUID id) {
+        Optional<Payroll> pOpt = payrollRepository.findById(id);
+        if (pOpt.isEmpty()) return ResponseEntity.notFound().build();
+
+        Payroll p = pOpt.get();
+        Employee emp = p.getEmployee();
+        User u = emp.getUser();
+        String[] monthNames = {"","January","February","March","April","May","June","July","August","September","October","November","December"};
+
+        try {
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            Document doc = new Document(PageSize.A4, 40, 40, 40, 40);
+            PdfWriter.getInstance(doc, baos);
+            doc.open();
+
+            Font titleFont = new Font(Font.HELVETICA, 18, Font.BOLD, new Color(108, 99, 255));
+            Font headFont = new Font(Font.HELVETICA, 12, Font.BOLD);
+            Font normalFont = new Font(Font.HELVETICA, 10);
+            Font smallFont = new Font(Font.HELVETICA, 9, Font.NORMAL, Color.GRAY);
+            Font netFont = new Font(Font.HELVETICA, 14, Font.BOLD, new Color(34, 197, 94));
+
+            // Header
+            doc.add(new Paragraph("EmPay HRMS", titleFont));
+            doc.add(new Paragraph("Payslip — " + monthNames[p.getPayMonth()] + " " + p.getPayYear(), smallFont));
+            doc.add(new Paragraph(" "));
+
+            // Employee Info Table
+            PdfPTable infoTable = new PdfPTable(4);
+            infoTable.setWidthPercentage(100);
+            addInfoCell(infoTable, "Employee", u.getFirstName() + " " + u.getLastName(), headFont, normalFont);
+            addInfoCell(infoTable, "Employee Code", emp.getEmployeeCode(), headFont, normalFont);
+            addInfoCell(infoTable, "Working Days", p.getPresentDays() + " / " + p.getTotalWorkingDays(), headFont, normalFont);
+            addInfoCell(infoTable, "Leaves", String.valueOf(p.getLeavesTaken()), headFont, normalFont);
+            doc.add(infoTable);
+            doc.add(new Paragraph(" "));
+
+            // Earnings & Deductions side-by-side
+            PdfPTable mainTable = new PdfPTable(2);
+            mainTable.setWidthPercentage(100);
+            mainTable.setSpacingBefore(10);
+
+            // Earnings column
+            PdfPTable earningsT = new PdfPTable(2);
+            earningsT.setWidthPercentage(100);
+            addSectionHeader(earningsT, "EARNINGS", headFont);
+            addRow(earningsT, "Basic Salary", "₹" + p.getBasicSalary(), normalFont);
+            addRow(earningsT, "HRA (40%)", "₹" + p.getHra(), normalFont);
+            addRow(earningsT, "Bonus (10%)", "₹" + p.getBonus(), normalFont);
+            addRow(earningsT, "Gross Salary", "₹" + p.getGrossSalary(), headFont);
+
+            PdfPCell earningsCell = new PdfPCell(earningsT);
+            earningsCell.setBorder(Rectangle.BOX);
+            earningsCell.setPadding(8);
+            mainTable.addCell(earningsCell);
+
+            // Deductions column
+            PdfPTable deductionsT = new PdfPTable(2);
+            deductionsT.setWidthPercentage(100);
+            addSectionHeader(deductionsT, "DEDUCTIONS", headFont);
+            addRow(deductionsT, "Provident Fund (12%)", "- ₹" + p.getPfDeduction(), normalFont);
+            addRow(deductionsT, "Professional Tax", "- ₹" + p.getProfessionalTax(), normalFont);
+            addRow(deductionsT, "Total Deductions", "- ₹" + p.getTotalDeductions(), headFont);
+
+            PdfPCell deductionsCell = new PdfPCell(deductionsT);
+            deductionsCell.setBorder(Rectangle.BOX);
+            deductionsCell.setPadding(8);
+            mainTable.addCell(deductionsCell);
+
+            doc.add(mainTable);
+            doc.add(new Paragraph(" "));
+
+            // Net Pay
+            Paragraph netPara = new Paragraph("Net Pay:  ₹" + p.getNetSalary(), netFont);
+            netPara.setAlignment(Element.ALIGN_RIGHT);
+            doc.add(netPara);
+
+            doc.add(new Paragraph(" "));
+            doc.add(new Paragraph("This is a system-generated payslip and does not require a signature.", smallFont));
+
+            doc.close();
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_PDF);
+            headers.setContentDisposition(ContentDisposition.attachment()
+                .filename("payslip_" + emp.getEmployeeCode() + "_" + p.getPayMonth() + "_" + p.getPayYear() + ".pdf").build());
+            return new ResponseEntity<>(baos.toByteArray(), headers, HttpStatus.OK);
+
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().build();
+        }
+    }
+
+    private void addInfoCell(PdfPTable table, String label, String value, Font labelFont, Font valueFont) {
+        PdfPCell cell = new PdfPCell();
+        cell.setBorder(Rectangle.NO_BORDER);
+        cell.addElement(new Paragraph(label, new Font(Font.HELVETICA, 8, Font.NORMAL, Color.GRAY)));
+        cell.addElement(new Paragraph(value, valueFont));
+        table.addCell(cell);
+    }
+
+    private void addSectionHeader(PdfPTable table, String title, Font font) {
+        PdfPCell cell = new PdfPCell(new Phrase(title, font));
+        cell.setColspan(2);
+        cell.setBorder(Rectangle.BOTTOM);
+        cell.setPaddingBottom(6);
+        table.addCell(cell);
+    }
+
+    private void addRow(PdfPTable table, String label, String value, Font font) {
+        PdfPCell c1 = new PdfPCell(new Phrase(label, font));
+        c1.setBorder(Rectangle.NO_BORDER);
+        c1.setPaddingTop(4);
+        table.addCell(c1);
+        PdfPCell c2 = new PdfPCell(new Phrase(value, font));
+        c2.setBorder(Rectangle.NO_BORDER);
+        c2.setHorizontalAlignment(Element.ALIGN_RIGHT);
+        c2.setPaddingTop(4);
+        table.addCell(c2);
+    }
+
     private Payroll calculatePayroll(Employee emp, int month, int year, User generator) {
-        BigDecimal basic = emp.getBasicSalary() != null ? emp.getBasicSalary() : BigDecimal.ZERO;
+        BigDecimal basic = emp.getBasicSalary() != null ? emp.getBasicSalary() : new BigDecimal("25000.00");
         int totalDays = 26;
         long presentDays = attendanceRepository.countPresentDays(emp, month, year);
         long approvedLeaves = leaveRepository.countApprovedLeaves(emp, month, year);
 
-        // HRA = 40% of basic, Bonus = 10% of basic
         BigDecimal hra = basic.multiply(new BigDecimal("0.40")).setScale(2, RoundingMode.HALF_UP);
         BigDecimal bonus = basic.multiply(new BigDecimal("0.10")).setScale(2, RoundingMode.HALF_UP);
 
-        // Attendance-based salary: (basic / totalDays) * (presentDays + approvedLeaves)
-        BigDecimal effectiveDays = new BigDecimal(presentDays + approvedLeaves);
-        BigDecimal earnedBasic = presentDays > 0
-            ? basic.multiply(effectiveDays).divide(new BigDecimal(totalDays), 2, RoundingMode.HALF_UP)
-            : basic; // if no attendance data, use full basic
-        BigDecimal earnedHra = hra.multiply(effectiveDays).divide(new BigDecimal(totalDays), 2, RoundingMode.HALF_UP);
+        boolean noAttendanceData = (presentDays == 0 && approvedLeaves == 0);
+        BigDecimal earnedBasic;
+        BigDecimal earnedHra;
+
+        if (noAttendanceData) {
+            earnedBasic = basic;
+            earnedHra = hra;
+        } else {
+            BigDecimal effectiveDays = new BigDecimal(presentDays + approvedLeaves);
+            earnedBasic = basic.multiply(effectiveDays).divide(new BigDecimal(totalDays), 2, RoundingMode.HALF_UP);
+            earnedHra = hra.multiply(effectiveDays).divide(new BigDecimal(totalDays), 2, RoundingMode.HALF_UP);
+        }
 
         BigDecimal gross = earnedBasic.add(earnedHra).add(bonus);
-
-        // PF = 12% of basic, Professional Tax = flat 200
         BigDecimal pf = basic.multiply(new BigDecimal("0.12")).setScale(2, RoundingMode.HALF_UP);
         BigDecimal profTax = new BigDecimal("200.00");
         BigDecimal totalDeductions = pf.add(profTax);

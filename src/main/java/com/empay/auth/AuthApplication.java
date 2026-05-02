@@ -48,10 +48,11 @@ public class AuthApplication {
                 admin.setPassword(passwordEncoder.encode("Admin@123"));
                 admin.setOrganization(org);
                 admin.setRole(adminRole);
+                admin.setLoginId("OIADMIN20260001");
                 admin.setMustChangePassword(false);
                 userRepository.save(admin);
 
-                System.out.println("✅ Admin user seeded: admin@odooindia.com / Admin@123");
+                System.out.println("\u2705 Admin user seeded: admin@odooindia.com / Admin@123");
             }
         };
     }
