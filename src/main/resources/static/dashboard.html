@@ -1,274 +1,377 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <title>Odoo India HRMS</title>
-    <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { background: #fff; color: #000; font-family: 'Segoe UI', sans-serif; height: 100vh; display: flex; overflow: hidden; font-size: 13px; }
-
-        /* Sidebar */
-        #sidebar { width: 180px; min-width: 180px; background: #000; display: flex; flex-direction: column; }
-        .brand { padding: 20px 16px; border-bottom: 1px solid #333; }
-        .brand strong { color: #fff; font-size: 15px; display: block; }
-        .brand span { color: #999; font-size: 11px; }
-        nav a { display: block; padding: 12px 16px; color: #aaa; text-decoration: none; border-bottom: 1px solid #111; }
-        nav a:hover { background: #222; color: #fff; }
-        nav a.active { background: #fff; color: #000; font-weight: 600; }
-
-        /* Main */
-        #main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
-
-        /* Topbar */
-        #topbar { background: #f5f5f5; border-bottom: 1px solid #ccc; padding: 10px 20px; display: flex; align-items: center; gap: 10px; }
-        #topbar .title { font-weight: 600; font-size: 14px; margin-right: auto; }
-        #btnNew { background: #000; color: #fff; border: none; padding: 7px 16px; cursor: pointer; font-size: 12px; }
-        #btnNew:hover { background: #333; }
-        #searchInput { border: 1px solid #ccc; padding: 7px 10px; font-size: 12px; width: 220px; outline: none; }
-        #searchInput:focus { border-color: #000; }
-        .topbar-btn { background: #fff; border: 1px solid #ccc; padding: 6px 10px; cursor: pointer; font-size: 12px; }
-        .topbar-btn:hover { background: #f0f0f0; }
-
-        /* Content */
-        #content { flex: 1; overflow-y: auto; padding: 20px; }
-
-        /* Tabs */
-        .tabs { display: flex; border-bottom: 1px solid #ccc; margin-bottom: 20px; }
-        .tabs button { background: none; border: none; padding: 8px 16px; cursor: pointer; font-size: 13px; color: #666; border-bottom: 2px solid transparent; margin-bottom: -1px; }
-        .tabs button.active { color: #000; border-bottom-color: #000; font-weight: 600; }
-        .tabs button:hover { color: #000; }
-
-        /* Employee table */
-        table { width: 100%; border-collapse: collapse; }
-        th { background: #f5f5f5; border: 1px solid #ddd; padding: 8px 12px; text-align: left; font-weight: 600; }
-        td { border: 1px solid #ddd; padding: 8px 12px; }
-        tr:hover td { background: #fafafa; }
-
-        /* Form */
-        .form-card { border: 1px solid #ccc; padding: 24px; max-width: 600px; }
-        .form-card h6 { font-size: 14px; font-weight: 600; margin-bottom: 20px; }
-        .form-row { display: flex; gap: 16px; margin-bottom: 14px; }
-        .form-row .field, .field { flex: 1; margin-bottom: 14px; }
-        .field label { display: block; font-size: 12px; color: #555; margin-bottom: 4px; }
-        .field input, .field select { width: 100%; border: 1px solid #ccc; padding: 7px 10px; font-size: 13px; outline: none; background: #fff; }
-        .field input:focus, .field select:focus { border-color: #000; }
-        .form-actions { display: flex; gap: 10px; margin-top: 8px; }
-        .btn-black { background: #000; color: #fff; border: none; padding: 8px 20px; cursor: pointer; font-size: 13px; }
-        .btn-black:hover { background: #333; }
-        .btn-outline { background: #fff; color: #000; border: 1px solid #ccc; padding: 8px 20px; cursor: pointer; font-size: 13px; }
-        .btn-outline:hover { background: #f5f5f5; }
-
-        /* Alert */
-        .alert { padding: 8px 12px; border: 1px solid #ccc; font-size: 12px; margin-bottom: 16px; background: #f9f9f9; }
-
-        /* Empty state */
-        #emptyState { text-align: center; padding: 60px 0; color: #aaa; }
-
-        #addEmployeeSection { display: none; }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EmPay — HRMS</title>
+  <meta name="description" content="EmPay Smart Human Resource Management System — manage employees, attendance, payroll and leaves.">
+  <link rel="stylesheet" href="/dashboard.css">
 </head>
 <body>
 
+<!-- ── SIDEBAR ──────────────────────────────────── -->
 <div id="sidebar">
-    <div class="brand">
-        <strong>Odoo India</strong>
-        <span id="userRole">—</span>
+  <div class="brand">
+    <div class="brand-logo">EmPay</div>
+    <div class="brand-sub">HRMS Platform</div>
+  </div>
+  <nav>
+    <a href="#" data-section="home" class="active">
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
+      Home
+    </a>
+    <a href="#" data-section="employees">
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+      Employees
+    </a>
+    <a href="#" data-section="attendance">
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>
+      Attendance
+    </a>
+    <a href="#" data-section="timeoff">
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+      Time Off
+    </a>
+    <a href="#" data-section="payroll">
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
+      Payroll
+    </a>
+    <a href="#" data-section="reports" id="navReports">
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+      Reports
+    </a>
+    <a href="#" data-section="profile">
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
+      Profile
+    </a>
+  </nav>
+  <div class="sidebar-footer">
+    <div class="user-chip">
+      <div class="user-avatar" id="avatarInitials"></div>
+      <div class="user-info">
+        <div class="user-name" id="sidebarName"></div>
+        <div class="user-role" id="sidebarRole"></div>
+      </div>
     </div>
-    <nav>
-        <a href="#" class="active" data-section="employees">Employees</a>
-        <a href="#" data-section="attendance">Attendance</a>
-        <a href="#" data-section="timeoff">Time Off</a>
-        <a href="#" data-section="payroll">Payroll</a>
-        <a href="#" data-section="reports">Reports</a>
-        <a href="#" data-section="settings">Settings</a>
-    </nav>
+    <button class="btn btn-ghost btn-sm" onclick="logout()" style="width:100%;margin-top:10px;justify-content:center">Logout</button>
+  </div>
 </div>
 
+<!-- ── MAIN ──────────────────────────────────────── -->
 <div id="main">
-    <div id="topbar">
-        <span class="title" id="sectionTitle">Employees</span>
-        <button id="btnNew" onclick="switchTab('add', document.getElementById('addTab'))">+ New</button>
-        <input type="text" id="searchInput" placeholder="Search..." oninput="filterEmployees(this.value)">
-        <button class="topbar-btn" onclick="showProfile()">Profile</button>
-        <button class="topbar-btn" onclick="logout()">Logout</button>
+  <div id="topbar">
+    <span class="title" id="topTitle">Home</span>
+  </div>
+
+  <div id="content">
+
+    <!-- ══ HOME ══════════════════════════════════════ -->
+    <div class="section active" id="sec-home">
+      <div class="stats-grid">
+        <div class="stat-card" style="--card-accent:#6c63ff">
+          <div class="stat-label">Total Employees</div>
+          <div class="stat-value" id="statTotal">—</div>
+          <div class="stat-sub">In your organization</div>
+        </div>
+        <div class="stat-card" style="--card-accent:#22c55e">
+          <div class="stat-label">Active Accounts</div>
+          <div class="stat-value" id="statActive">—</div>
+          <div class="stat-sub">Active users</div>
+        </div>
+        <div class="stat-card" style="--card-accent:#f59e0b">
+          <div class="stat-label">Checked In Today</div>
+          <div class="stat-value" id="statCheckedIn">—</div>
+          <div class="stat-sub">Your status today</div>
+        </div>
+        <div class="stat-card" style="--card-accent:#ef4444">
+          <div class="stat-label">Pending Leaves</div>
+          <div class="stat-value" id="statPending">—</div>
+          <div class="stat-sub">Awaiting approval</div>
+        </div>
+      </div>
+      <div style="color:var(--muted);font-size:13px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:20px 24px">
+        <b style="color:var(--text)">Quick Links:</b>
+        &nbsp;
+        <a href="#" onclick="showSection('attendance');loadAttendance();return false;" style="color:var(--accent2);text-decoration:none;margin-right:16px">→ Mark Attendance</a>
+        <a href="#" onclick="showSection('timeoff');loadTimeOff();return false;" style="color:var(--accent2);text-decoration:none;margin-right:16px">→ Apply Leave</a>
+        <a href="#" onclick="showSection('payroll');loadPayroll();return false;" style="color:var(--accent2);text-decoration:none">→ View Payslips</a>
+      </div>
     </div>
 
-    <div id="content">
-        <div class="tabs" id="empTabs">
-            <button class="active" onclick="switchTab('list', this)">All Employees</button>
-            <button id="addTab" onclick="switchTab('add', this)">+ Add Employee</button>
+    <!-- ══ EMPLOYEES ══════════════════════════════════ -->
+    <div class="section" id="sec-employees">
+      <div class="section-header">
+        <div class="section-title">Employees</div>
+        <div style="display:flex;gap:10px;align-items:center">
+          <div class="search-wrap">
+            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+            <input type="text" placeholder="Search employees…" oninput="filterEmployees(this.value)">
+          </div>
         </div>
+      </div>
 
-        <!-- List -->
-        <div id="listSection">
-            <table id="empTable">
-                <thead>
-                    <tr>
-                        <th>Login ID</th>
-                        <th>Name</th>
-                        <th>Email</th>
-                        <th>Role</th>
-                        <th>Status</th>
-                    </tr>
-                </thead>
-                <tbody id="empBody"></tbody>
-            </table>
-            <div id="emptyState" style="display:none;">No employees found.</div>
+      <div class="tabs" id="empTabs">
+        <button class="tab-btn active" onclick="switchEmpTab('list',this)">All Employees</button>
+        <button class="tab-btn" id="btnAddEmpTab" onclick="switchEmpTab('add',this)">+ Add Employee</button>
+      </div>
+
+      <!-- List -->
+      <div id="empListView">
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Login ID</th><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th></th></tr></thead>
+            <tbody id="empBody"></tbody>
+          </table>
         </div>
+      </div>
 
-        <!-- Add Employee -->
-        <div id="addEmployeeSection">
-            <div class="form-card">
-                <h6>Add New Employee</h6>
-                <div id="addEmpAlert" class="alert" style="display:none;"></div>
-                <form id="addEmpForm" onsubmit="return false;">
-                    <div class="form-row">
-                        <div class="field">
-                            <label>First Name</label>
-                            <input type="text" id="addFirstName" required>
-                        </div>
-                        <div class="field">
-                            <label>Last Name</label>
-                            <input type="text" id="addLastName" required>
-                        </div>
-                    </div>
-                    <div class="form-row">
-                        <div class="field">
-                            <label>Email</label>
-                            <input type="email" id="addEmail" required>
-                        </div>
-                        <div class="field">
-                            <label>Phone</label>
-                            <input type="text" id="addPhone">
-                        </div>
-                    </div>
-                    <div class="form-row">
-                        <div class="field">
-                            <label>Role</label>
-                            <select id="addRole">
-                                <option value="EMPLOYEE">Employee</option>
-                                <option value="HR_OFFICER">HR Officer</option>
-                                <option value="PAYROLL_OFFICER">Payroll Officer</option>
-                                <option value="ADMIN">Admin</option>
-                            </select>
-                        </div>
-                        <div class="field">
-                            <label>Designation</label>
-                            <input type="text" id="addDesignation">
-                        </div>
-                    </div>
-                    <div class="form-actions">
-                        <button class="btn-black" onclick="submitAddEmployee()">Create & Send Password</button>
-                        <button class="btn-outline" type="reset">Clear</button>
-                    </div>
-                </form>
+      <!-- Add -->
+      <div id="empAddView" style="display:none">
+        <div class="form-card">
+          <h2>Add New Employee</h2>
+          <div class="alert" id="addEmpAlert"></div>
+          <form id="addEmpForm" onsubmit="return false;">
+            <div class="form-grid">
+              <div class="field"><label>First Name</label><input type="text" id="addFirst" required></div>
+              <div class="field"><label>Last Name</label><input type="text" id="addLast" required></div>
+              <div class="field"><label>Email</label><input type="email" id="addEmail" required></div>
+              <div class="field"><label>Phone</label><input type="text" id="addPhone"></div>
+              <div class="field"><label>Role</label>
+                <select id="addRole">
+                  <option value="EMPLOYEE">Employee</option>
+                  <option value="HR_OFFICER">HR Officer</option>
+                  <option value="PAYROLL_OFFICER">Payroll Officer</option>
+                  <option value="ADMIN">Admin</option>
+                </select>
+              </div>
+              <div class="field"><label>Designation</label><input type="text" id="addDesig"></div>
             </div>
+            <div class="form-actions">
+              <button class="btn btn-primary" onclick="submitAddEmployee()">Create &amp; Send Password</button>
+              <button class="btn btn-ghost" type="reset">Clear</button>
+            </div>
+          </form>
         </div>
+      </div>
     </div>
-</div>
+
+    <!-- ══ ATTENDANCE ══════════════════════════════════ -->
+    <div class="section" id="sec-attendance">
+      <div id="attAlert" class="alert"></div>
+
+      <!-- Check-in card (always visible) -->
+      <div class="checkin-card">
+        <div class="clock" id="liveClock">--:--:--</div>
+        <div class="date-str" id="liveDate"></div>
+        <div class="status-indicator" id="checkinStatus"></div>
+        <div id="checkinBtnArea"></div>
+      </div>
+
+      <!-- Tabs -->
+      <div class="tabs" id="attTabs">
+        <button class="tab-btn" id="attTab-my" onclick="switchAttTab('my')">My Attendance</button>
+        <button class="tab-btn" id="attTab-all" onclick="switchAttTab('all')">All Employees</button>
+      </div>
+
+      <!-- My attendance -->
+      <div id="attMy" style="display:none">
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Date</th><th>Check In</th><th>Check Out</th><th>Hours</th><th>Status</th></tr></thead>
+            <tbody id="myAttBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- All attendance -->
+      <div id="attAll" style="display:none">
+        <div class="filter-bar">
+          <select id="attMonth" class="month-select"></select>
+          <input type="number" id="attYear" class="year-input" min="2020" max="2040" style="width:90px">
+          <button class="btn btn-ghost" onclick="loadAllAttendance()">Filter</button>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Employee</th><th>Date</th><th>Check In</th><th>Check Out</th><th>Hours</th><th>Status</th></tr></thead>
+            <tbody id="allAttBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ TIME OFF ═════════════════════════════════════ -->
+    <div class="section" id="sec-timeoff">
+      <div class="tabs" id="leaveTabs">
+        <button class="tab-btn" id="leaveTab-my" onclick="switchLeaveTab('my')">My Leaves</button>
+        <button class="tab-btn" id="leaveTab-apply" onclick="switchLeaveTab('apply')">Apply Leave</button>
+        <button class="tab-btn" id="leaveTab-all" onclick="switchLeaveTab('all')">All Requests</button>
+      </div>
+
+      <!-- Apply -->
+      <div id="leaveApply" style="display:none">
+        <div class="form-card">
+          <h2>Apply for Leave</h2>
+          <div class="alert" id="leaveAlert"></div>
+          <form id="leaveForm" onsubmit="return false;">
+            <div class="form-grid">
+              <div class="field"><label>Leave Type</label>
+                <select id="leaveType">
+                  <option value="CASUAL">Casual</option>
+                  <option value="SICK">Sick</option>
+                  <option value="EARNED">Earned</option>
+                  <option value="MATERNITY">Maternity</option>
+                  <option value="PATERNITY">Paternity</option>
+                  <option value="UNPAID">Unpaid</option>
+                </select>
+              </div>
+              <div></div>
+              <div class="field"><label>Start Date</label><input type="date" id="leaveStart" required></div>
+              <div class="field"><label>End Date</label><input type="date" id="leaveEnd" required></div>
+              <div class="field col-span-2"><label>Reason</label><textarea id="leaveReason" placeholder="Brief reason for leave…"></textarea></div>
+            </div>
+            <div class="form-actions">
+              <button class="btn btn-primary" onclick="submitLeave()">Submit Request</button>
+              <button class="btn btn-ghost" type="reset">Clear</button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <!-- My leaves -->
+      <div id="leaveMy" style="display:none">
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Type</th><th>From</th><th>To</th><th>Reason</th><th>Status</th></tr></thead>
+            <tbody id="myLeaveBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- All leaves -->
+      <div id="leaveAll" style="display:none">
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Employee</th><th>Type</th><th>Duration</th><th>Reason</th><th>Status</th><th>Actions</th></tr></thead>
+            <tbody id="allLeaveBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ PAYROLL ═══════════════════════════════════════ -->
+    <div class="section" id="sec-payroll">
+      <div class="tabs" id="payrollTabs">
+        <button class="tab-btn" id="payrollTab-my" onclick="switchPayrollTab('my')">My Payslips</button>
+        <button class="tab-btn" id="payrollTab-generate" onclick="switchPayrollTab('generate')">Generate Payroll</button>
+        <button class="tab-btn" id="payrollTab-all" onclick="switchPayrollTab('all')">All Payroll</button>
+      </div>
+
+      <!-- My payslips -->
+      <div id="payrollMy" style="display:none">
+        <div id="myPayrollList"></div>
+      </div>
+
+      <!-- Generate -->
+      <div id="payrollGenerate" style="display:none">
+        <div class="form-card">
+          <h2>Generate Monthly Payroll</h2>
+          <div class="alert" id="genAlert"></div>
+          <div class="form-grid">
+            <div class="field col-span-2"><label>Employee Email</label><input type="email" id="genEmpEmail" placeholder="employee@company.com"></div>
+            <div class="field">
+              <label>Month</label>
+              <select id="genMonth" class="month-select"></select>
+            </div>
+            <div class="field"><label>Year</label><input type="number" id="genYear" class="year-input" min="2020" max="2040"></div>
+          </div>
+          <div class="form-actions">
+            <button class="btn btn-primary" onclick="submitGeneratePayroll()">Generate Payroll</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- All payroll -->
+      <div id="payrollAll" style="display:none">
+        <div class="filter-bar">
+          <select id="payMonth" class="month-select"></select>
+          <input type="number" id="payYear" class="year-input" min="2020" max="2040" style="width:90px">
+          <button class="btn btn-ghost" onclick="loadAllPayroll()">Filter</button>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Employee</th><th>Period</th><th>Days</th><th>Gross</th><th>Deductions</th><th>Net Pay</th><th>Status</th><th></th></tr></thead>
+            <tbody id="allPayrollBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ REPORTS ════════════════════════════════════════ -->
+    <div class="section" id="sec-reports">
+      <div class="section-title" style="margin-bottom:20px">Organization Overview</div>
+      <div class="stats-grid">
+        <div class="stat-card" style="--card-accent:#6c63ff">
+          <div class="stat-label">Total Employees</div>
+          <div class="stat-value" id="rptTotal">—</div>
+        </div>
+        <div class="stat-card" style="--card-accent:#22c55e">
+          <div class="stat-label">Active Employees</div>
+          <div class="stat-value" id="rptActive">—</div>
+        </div>
+      </div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:24px;margin-top:8px;color:var(--muted);font-size:13px;line-height:1.8">
+        <b style="color:var(--text);display:block;margin-bottom:8px">Reports Summary</b>
+        Detailed charts and analytics will be shown here. Navigate to <b style="color:var(--accent2)">Attendance</b> to view attendance logs,
+        <b style="color:var(--accent2)">Time Off</b> to manage leave requests, and
+        <b style="color:var(--accent2)">Payroll</b> to view monthly payroll records.
+      </div>
+    </div>
+
+    <!-- ══ PROFILE ════════════════════════════════════════ -->
+    <div class="section" id="sec-profile">
+      <div class="profile-header">
+        <div class="profile-avatar-big" id="profAvatarInit"></div>
+        <div>
+          <div class="profile-name" id="profName"></div>
+          <div class="profile-role" id="profRoleLine"></div>
+          <div class="profile-emp" id="profEmpCode"></div>
+        </div>
+      </div>
+
+      <div class="form-card">
+        <h2>Edit Profile</h2>
+        <div class="alert" id="profAlert"></div>
+        <div class="form-grid">
+          <div class="field"><label>First Name</label><input type="text" id="profFirstName"></div>
+          <div class="field"><label>Last Name</label><input type="text" id="profLastName"></div>
+          <div class="field"><label>Phone</label><input type="text" id="profPhone"></div>
+          <div class="field"><label>Designation</label><input type="text" id="profDesig"></div>
+          <div class="field"><label>Bank Account No.</label><input type="text" id="profBank"></div>
+          <div class="field"><label>PAN Number</label><input type="text" id="profPAN"></div>
+          <div class="field"><label>Basic Salary (₹)</label><input type="number" id="profSalary"></div>
+          <div class="field"><label>Joining Date</label><input type="text" id="profJoining" readonly style="opacity:0.5"></div>
+          <div class="field"><label>Employment Type</label><input type="text" id="profEmpType" readonly style="opacity:0.5"></div>
+        </div>
+        <div class="form-actions">
+          <button class="btn btn-primary" onclick="saveProfile()">Save Changes</button>
+          <button class="btn btn-ghost" onclick="loadProfile()">Reset</button>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /content -->
+</div><!-- /main -->
 
 <script>
-    const user = JSON.parse(sessionStorage.getItem('user'));
-    if (!user) window.location.href = '/index.html';
-
-    document.getElementById('userRole').textContent = user.role || '';
-    const canManage = ['ADMIN', 'HR_OFFICER'].includes(user.role);
-    if (!canManage) {
-        document.getElementById('btnNew').style.display = 'none';
-        document.getElementById('addTab').style.display = 'none';
-    }
-
-    // Sidebar
-    document.querySelectorAll('nav a').forEach(link => {
-        link.addEventListener('click', e => {
-            e.preventDefault();
-            document.querySelectorAll('nav a').forEach(a => a.classList.remove('active'));
-            link.classList.add('active');
-            document.getElementById('sectionTitle').textContent =
-                link.dataset.section.charAt(0).toUpperCase() + link.dataset.section.slice(1);
-            if (link.dataset.section === 'employees') {
-                document.getElementById('empTabs').style.display = 'flex';
-                switchTab('list', document.querySelector('.tabs button'));
-            } else {
-                document.getElementById('empTabs').style.display = 'none';
-                document.getElementById('listSection').style.display = 'none';
-                document.getElementById('addEmployeeSection').style.display = 'none';
-            }
-        });
-    });
-
-    function switchTab(tab, btn) {
-        if (tab === 'add' && !canManage) return;
-        document.querySelectorAll('.tabs button').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        document.getElementById('listSection').style.display        = tab === 'list' ? 'block' : 'none';
-        document.getElementById('addEmployeeSection').style.display = tab === 'add'  ? 'block' : 'none';
-        document.getElementById('btnNew').style.display      = (tab === 'list' && canManage) ? 'inline-block' : 'none';
-        document.getElementById('searchInput').style.display = tab === 'list' ? 'inline-block' : 'none';
-    }
-
-    // Mock data — replace with API
-    const mockEmployees = [
-        { loginId: 'OIALJO20260001', name: 'Alice Johnson',  email: 'alice@oi.com', role: 'HR Officer',      active: true },
-        { loginId: 'OIBOSM20260002', name: 'Bob Smith',       email: 'bob@oi.com',   role: 'Developer',       active: true },
-        { loginId: 'OICAWH20260003', name: 'Carol White',     email: 'carol@oi.com', role: 'Payroll Officer', active: false },
-    ];
-    let allEmployees = [...mockEmployees];
-
-    function renderTable(list) {
-        const tbody = document.getElementById('empBody');
-        const empty = document.getElementById('emptyState');
-        tbody.innerHTML = '';
-        if (!list.length) { empty.style.display = 'block'; document.getElementById('empTable').style.display = 'none'; return; }
-        empty.style.display = 'none';
-        document.getElementById('empTable').style.display = 'table';
-        list.forEach(emp => {
-            tbody.innerHTML += `<tr>
-                <td>${emp.loginId}</td>
-                <td>${emp.name}</td>
-                <td>${emp.email}</td>
-                <td>${emp.role}</td>
-                <td>${emp.active ? 'Active' : 'Inactive'}</td>
-            </tr>`;
-        });
-    }
-    renderTable(allEmployees);
-
-    function filterEmployees(q) {
-        q = q.toLowerCase();
-        renderTable(allEmployees.filter(e => e.name.toLowerCase().includes(q) || e.role.toLowerCase().includes(q)));
-    }
-
-    async function submitAddEmployee() {
-        const alertEl = document.getElementById('addEmpAlert');
-        const payload = {
-            firstName: document.getElementById('addFirstName').value.trim(),
-            lastName:  document.getElementById('addLastName').value.trim(),
-            email:     document.getElementById('addEmail').value.trim(),
-            phone:     document.getElementById('addPhone').value.trim(),
-            role:      document.getElementById('addRole').value
-        };
-        if (!payload.firstName || !payload.lastName || !payload.email) {
-            alertEl.textContent = 'First name, last name and email are required.';
-            alertEl.style.display = 'block';
-            return;
-        }
-        try {
-            const res = await fetch('/api/admin/create-user', {
-                method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
-            });
-            const data = await res.json();
-            alertEl.textContent = res.ok ? `Created! Login ID: ${data.loginId} — Password sent to ${data.email}` : data.message;
-            alertEl.style.display = 'block';
-            if (res.ok) document.getElementById('addEmpForm').reset();
-        } catch {
-            alertEl.textContent = 'Network error.';
-            alertEl.style.display = 'block';
-        }
-    }
-
-    function logout() { sessionStorage.clear(); window.location.href = '/index.html'; }
-    function showProfile() { alert(`${user.firstName} ${user.lastName}\n${user.email}\n${user.role}`); }
+// Tab helpers called from HTML (not in dashboard.js scope issue)
+function switchEmpTab(tab, btn) {
+  document.querySelectorAll('#empTabs .tab-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('empListView').style.display = tab==='list' ? 'block':'none';
+  document.getElementById('empAddView').style.display  = tab==='add'  ? 'block':'none';
+  if (tab==='list') loadEmployees();
+}
 </script>
+<script src="/dashboard.js"></script>
 </body>
 </html>

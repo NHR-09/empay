@@ -1,12 +1,15 @@
 package com.empay.auth.controller;
 
+import com.empay.auth.model.Employee;
 import com.empay.auth.model.User;
+import com.empay.auth.repository.EmployeeRepository;
 import com.empay.auth.repository.UserRepository;
 import com.empay.auth.service.UserService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
 import java.util.Map;
 import java.util.Optional;
 
@@ -17,11 +20,14 @@ public class AuthController {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final UserService userService;
+    private final EmployeeRepository employeeRepository;
 
-    public AuthController(UserRepository userRepository, PasswordEncoder passwordEncoder, UserService userService) {
+    public AuthController(UserRepository userRepository, PasswordEncoder passwordEncoder,
+                          UserService userService, EmployeeRepository employeeRepository) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.userService = userService;
+        this.employeeRepository = employeeRepository;
     }
 
     @PostMapping("/register")
@@ -56,6 +62,22 @@ public class AuthController {
         }
 
         User user = optUser.get();
+        if (!user.isActive()) {
+            return ResponseEntity.status(403).body(Map.of("message", "Account is inactive. Contact your administrator."));
+        }
+        user.setLastLogin(java.time.LocalDateTime.now());
+        userRepository.save(user);
+
+        // Auto-create employee record if missing
+        if (employeeRepository.findByUser(user).isEmpty()) {
+            Employee emp = new Employee();
+            emp.setUser(user);
+            emp.setOrganization(user.getOrganization());
+            emp.setEmployeeCode(user.getLoginId() != null ? user.getLoginId() : "EMP-" + user.getId().toString().substring(0, 8));
+            emp.setJoiningDate(LocalDate.now());
+            employeeRepository.save(emp);
+        }
+
         return ResponseEntity.ok(Map.of(
             "message", "Login successful",
             "mustChangePassword", user.isMustChangePassword(),

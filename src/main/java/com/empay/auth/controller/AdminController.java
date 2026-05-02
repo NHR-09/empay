@@ -1,21 +1,82 @@
 package com.empay.auth.controller;
 
+import com.empay.auth.model.Employee;
+import com.empay.auth.model.User;
+import com.empay.auth.repository.EmployeeRepository;
+import com.empay.auth.repository.UserRepository;
 import com.empay.auth.service.UserService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.Map;
+import java.time.LocalDate;
+import java.util.*;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/admin")
 public class AdminController {
 
     private final UserService userService;
-    private final com.empay.auth.repository.UserRepository userRepository;
+    private final UserRepository userRepository;
+    private final EmployeeRepository employeeRepository;
 
-    public AdminController(UserService userService, com.empay.auth.repository.UserRepository userRepository) {
+    public AdminController(UserService userService, UserRepository userRepository, EmployeeRepository employeeRepository) {
         this.userService = userService;
         this.userRepository = userRepository;
+        this.employeeRepository = employeeRepository;
+    }
+
+    @PatchMapping("/users/{loginId}/status")
+    public ResponseEntity<?> toggleStatus(@PathVariable String loginId, @RequestBody Map<String, String> body) {
+        Optional<User> userOpt = userRepository.findAll().stream()
+            .filter(u -> loginId.equals(u.getLoginId()))
+            .findFirst();
+        if (userOpt.isEmpty()) return ResponseEntity.badRequest().body(Map.of("message", "User not found."));
+
+        User u = userOpt.get();
+        u.setActive("ACTIVE".equalsIgnoreCase(body.get("status")));
+        userRepository.save(u);
+        return ResponseEntity.ok(Map.of("message", "Status updated.", "status", body.get("status")));
+    }
+
+    @DeleteMapping("/users/{loginId}")
+    public ResponseEntity<?> deleteUser(@PathVariable String loginId) {
+        Optional<User> userOpt = userRepository.findAll().stream()
+            .filter(u -> loginId.equals(u.getLoginId()))
+            .findFirst();
+        if (userOpt.isEmpty()) return ResponseEntity.badRequest().body(Map.of("message", "User not found."));
+
+        userRepository.delete(userOpt.get());
+        return ResponseEntity.ok(Map.of("message", "User deleted."));
+    }
+
+    @GetMapping("/users")
+    public ResponseEntity<?> getUsers() {
+        List<Map<String, String>> users = userRepository.findAll().stream()
+            .filter(u -> u.getLoginId() != null && !u.getLoginId().isBlank())
+            .map(u -> Map.of(
+                "loginId",   u.getLoginId(),
+                "firstName", u.getFirstName() != null ? u.getFirstName() : "",
+                "lastName",  u.getLastName()  != null ? u.getLastName()  : "",
+                "email",     u.getEmail()     != null ? u.getEmail()     : "",
+                "role",      u.getRole()      != null ? u.getRole().getRoleName() : "",
+                "status",    u.isActive() ? "ACTIVE" : "INACTIVE"
+            ))
+            .collect(Collectors.toList());
+        return ResponseEntity.ok(users);
+    }
+
+    @PostMapping("/cleanup")
+    public ResponseEntity<?> cleanup() {
+        List<User> badUsers = userRepository.findAll().stream()
+            .filter(u -> u.getLoginId() == null || u.getLoginId().isBlank())
+            .collect(Collectors.toList());
+        int count = badUsers.size();
+        for (User u : badUsers) {
+            employeeRepository.findByUser(u).ifPresent(employeeRepository::delete);
+            userRepository.delete(u);
+        }
+        return ResponseEntity.ok(Map.of("message", "Cleaned up " + count + " invalid user(s)."));
     }
 
     @PostMapping("/create-user")
@@ -31,7 +92,7 @@ public class AdminController {
         }
         try {
             String companyCode = body.getOrDefault("companyCode", "OI");
-            com.empay.auth.model.User user = userService.registerUser(
+            User user = userService.registerUser(
                 body.get("firstName"),
                 body.get("lastName"),
                 body.get("email"),
@@ -39,6 +100,16 @@ public class AdminController {
                 companyCode,
                 body.getOrDefault("role", "EMPLOYEE")
             );
+            // Auto-create employee record
+            if (employeeRepository.findByUser(user).isEmpty()) {
+                Employee emp = new Employee();
+                emp.setUser(user);
+                emp.setOrganization(user.getOrganization());
+                emp.setEmployeeCode(user.getLoginId());
+                emp.setDesignation(body.getOrDefault("designation", ""));
+                emp.setJoiningDate(LocalDate.now());
+                employeeRepository.save(emp);
+            }
             return ResponseEntity.ok(Map.of(
                 "message", "User created successfully.",
                 "loginId", user.getLoginId(),
@@ -47,5 +118,22 @@ public class AdminController {
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
         }
+    }
+
+    @GetMapping("/stats")
+    public ResponseEntity<?> stats(@RequestParam String email) {
+        Optional<User> userOpt = userRepository.findByEmail(email);
+        if (userOpt.isEmpty()) return ResponseEntity.badRequest().body(Map.of("message", "User not found."));
+
+        User user = userOpt.get();
+        long total = userRepository.findAll().stream()
+            .filter(u -> u.getOrganization().getId().equals(user.getOrganization().getId())).count();
+        long active = userRepository.findAll().stream()
+            .filter(u -> u.getOrganization().getId().equals(user.getOrganization().getId()) && u.isActive()).count();
+
+        Map<String, Object> statsMap = new HashMap<>();
+        statsMap.put("totalEmployees", total);
+        statsMap.put("activeEmployees", active);
+        return ResponseEntity.ok(statsMap);
     }
 }
