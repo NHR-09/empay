@@ -24,6 +24,26 @@ public class AuthController {
         this.userService = userService;
     }
 
+    @PostMapping("/register")
+    public ResponseEntity<?> register(@RequestBody Map<String, String> body) {
+        try {
+            User user = userService.registerUser(
+                body.get("firstName"),
+                body.get("lastName"),
+                body.get("email"),
+                body.get("phone"),
+                body.get("companyCode"),
+                body.getOrDefault("role", "EMPLOYEE")
+            );
+            return ResponseEntity.ok(Map.of(
+                "message", "User registered successfully. Temporary password sent to email.",
+                "email", user.getEmail()
+            ));
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
+        }
+    }
+
     @PostMapping("/login")
     public ResponseEntity<?> login(@RequestBody Map<String, String> body) {
         String email = body.get("email");
@@ -38,8 +58,9 @@ public class AuthController {
         return ResponseEntity.ok(Map.of(
             "message", "Login successful",
             "mustChangePassword", user.isMustChangePassword(),
-            "role", user.getRole().name(),
-            "name", user.getName(),
+            "role", user.getRole().getRoleName(),
+            "firstName", user.getFirstName(),
+            "lastName", user.getLastName(),
             "email", user.getEmail()
         ));
     }

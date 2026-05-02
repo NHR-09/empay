@@ -19,7 +19,16 @@ public class AdminController {
     @PostMapping("/create-user")
     public ResponseEntity<?> createUser(@RequestBody Map<String, String> body) {
         try {
-            userService.createUser(body.get("name"), body.get("email"));
+            // companyCode defaults to EMPAY001 (the seeded org) if not provided
+            String companyCode = body.getOrDefault("companyCode", "EMPAY001");
+            userService.registerUser(
+                body.get("firstName"),
+                body.get("lastName"),
+                body.get("email"),
+                body.getOrDefault("phone", ""),
+                companyCode,
+                body.getOrDefault("role", "EMPLOYEE")
+            );
             return ResponseEntity.ok(Map.of("message", "User created and temporary password sent to " + body.get("email")));
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));

@@ -24,13 +24,32 @@
         <div id="alert" class="alert d-none"></div>
 
         <form id="createUserForm">
-            <div class="mb-3">
-                <label class="form-label">Full Name</label>
-                <input type="text" id="name" class="form-control" placeholder="John Doe" required>
+            <div class="row mb-3">
+                <div class="col">
+                    <label class="form-label">First Name</label>
+                    <input type="text" id="firstName" class="form-control" placeholder="John" required>
+                </div>
+                <div class="col">
+                    <label class="form-label">Last Name</label>
+                    <input type="text" id="lastName" class="form-control" placeholder="Doe" required>
+                </div>
             </div>
             <div class="mb-3">
                 <label class="form-label">Email</label>
                 <input type="email" id="email" class="form-control" placeholder="john@example.com" required>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Phone</label>
+                <input type="text" id="phone" class="form-control" placeholder="9999999999">
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Role</label>
+                <select id="role" class="form-select">
+                    <option value="EMPLOYEE">Employee</option>
+                    <option value="HR_OFFICER">HR Officer</option>
+                    <option value="PAYROLL_OFFICER">Payroll Officer</option>
+                    <option value="ADMIN">Admin</option>
+                </select>
             </div>
             <button type="submit" class="btn btn-primary w-100">Create User & Send Password</button>
         </form>
@@ -42,14 +61,18 @@
 
         document.getElementById('createUserForm').addEventListener('submit', async (e) => {
             e.preventDefault();
-            const name = document.getElementById('name').value;
-            const email = document.getElementById('email').value;
             const alertEl = document.getElementById('alert');
 
             const res = await fetch('/api/admin/create-user', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name, email })
+                body: JSON.stringify({
+                    firstName: document.getElementById('firstName').value,
+                    lastName:  document.getElementById('lastName').value,
+                    email:     document.getElementById('email').value,
+                    phone:     document.getElementById('phone').value,
+                    role:      document.getElementById('role').value
+                })
             });
 
             const data = await res.json();
@@ -57,9 +80,7 @@
             alertEl.textContent = data.message;
             alertEl.classList.remove('d-none');
 
-            if (res.ok) {
-                document.getElementById('createUserForm').reset();
-            }
+            if (res.ok) document.getElementById('createUserForm').reset();
         });
 
         function logout() {
